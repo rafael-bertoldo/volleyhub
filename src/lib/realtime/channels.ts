@@ -15,3 +15,7 @@ export function atletaChannel(atletaId: string) {
 export function treinoChannel(eventoId: string) {
   return `treino:${eventoId}`;
 }
+
+export function jogoChannel(eventoId: string) {
+  return `jogo:${eventoId}`;
+}

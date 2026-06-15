@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAtletaByToken } from "@/lib/atleta-server";
-import type { FeedItem } from "@/lib/types";
+import { getConvocacaoStatusPorEvento } from "@/lib/jogos-server";
+import type { FeedItemComConvocacao } from "@/lib/types";
 import { FeedList } from "./feed-list";
 
 interface PageProps {
@@ -33,7 +34,24 @@ export default async function FeedPage({ params }: PageProps) {
   ]);
 
   const arquivadosIds = new Set((arquivados ?? []).map((a) => a.feed_id));
-  const allItems = (feedItems ?? []) as FeedItem[];
+  const allItems = (feedItems ?? []) as FeedItemComConvocacao[];
+
+  const convocacaoEventoIds = allItems
+    .filter((i) => i.tipo === "convocacao" && i.evento_id)
+    .map((i) => i.evento_id as string);
+
+  const convocacaoStatus = await getConvocacaoStatusPorEvento(
+    atleta.id,
+    convocacaoEventoIds,
+  );
+
+  for (const item of allItems) {
+    if (item.tipo === "convocacao" && item.evento_id) {
+      item.convocacao_status =
+        (convocacaoStatus.get(item.evento_id) as FeedItemComConvocacao["convocacao_status"]) ??
+        "pendente";
+    }
+  }
 
   const activeItems = allItems.filter((i) => !arquivadosIds.has(i.id));
   const archivedItems = allItems.filter((i) => arquivadosIds.has(i.id));

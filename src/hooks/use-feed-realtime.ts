@@ -8,7 +8,14 @@ import {
   atletaChannel,
 } from "@/lib/realtime/channels";
 import { feedItemMatchesAnuncio } from "@/lib/feed";
-import type { Anuncio, FeedItem } from "@/lib/types";
+import type { Anuncio, FeedItem, FeedItemComConvocacao } from "@/lib/types";
+
+function enrichConvocacaoItem(item: FeedItem): FeedItemComConvocacao {
+  if (item.tipo === "convocacao" && item.evento_id) {
+    return { ...item, convocacao_status: "pendente" };
+  }
+  return item;
+}
 
 function sortFeed(items: FeedItem[]) {
   return [...items].sort(
@@ -22,8 +29,8 @@ function mergeFeedItem(items: FeedItem[], item: FeedItem): FeedItem[] {
 }
 
 export function useFeedRealtime(
-  initialActive: FeedItem[],
-  initialArchived: FeedItem[],
+  initialActive: FeedItemComConvocacao[],
+  initialArchived: FeedItemComConvocacao[],
   atletaId: string,
 ) {
   const [active, setActive] = useState(initialActive);
@@ -38,7 +45,7 @@ export function useFeedRealtime(
     const supabase = createClient();
 
     function handleNewItem(payload: FeedItem) {
-      setActive((prev) => mergeFeedItem(prev, payload));
+      setActive((prev) => mergeFeedItem(prev, enrichConvocacaoItem(payload)));
     }
 
     function handleDeleted(payload: { id: string }) {
@@ -73,6 +80,9 @@ export function useFeedRealtime(
       .channel(atletaChannel(atletaId))
       .on("broadcast", { event: REALTIME_EVENTS.FEED_ITEM }, ({ payload }) => {
         handleNewItem(payload as FeedItem);
+      })
+      .on("broadcast", { event: REALTIME_EVENTS.FEED_DELETED }, ({ payload }) => {
+        handleDeleted(payload as { id: string });
       })
       .subscribe();
 

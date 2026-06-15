@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AnuncioImage } from "@/components/anuncio-image";
 import { useFeedRealtime } from "@/hooks/use-feed-realtime";
 import { formatFeedDate } from "@/lib/feed";
-import type { FeedItem, TipoFeed } from "@/lib/types";
+import { CONVOCACAO_STATUS_BADGE, CONVOCACAO_STATUS_LABEL } from "@/lib/jogos";
+import type { FeedItemComConvocacao, StatusConvocacao, TipoFeed } from "@/lib/types";
 
 interface FeedListProps {
-  activeItems: FeedItem[];
-  archivedItems: FeedItem[];
+  activeItems: FeedItemComConvocacao[];
+  archivedItems: FeedItemComConvocacao[];
   atletaId: string;
   accessToken: string;
 }
@@ -107,6 +109,11 @@ export function FeedList({
   );
 }
 
+function resolveConvocacaoStatus(item: FeedItemComConvocacao): StatusConvocacao | null {
+  if (item.tipo !== "convocacao" || !item.evento_id) return null;
+  return item.convocacao_status ?? "pendente";
+}
+
 function FeedCard({
   item,
   atletaId,
@@ -115,17 +122,49 @@ function FeedCard({
   onArchive,
   onRestore,
 }: {
-  item: FeedItem;
+  item: FeedItemComConvocacao;
   atletaId: string;
   accessToken: string;
   mode: "active" | "archived";
   onArchive?: () => void;
   onRestore?: () => void;
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [convocacaoStatus, setConvocacaoStatus] = useState<StatusConvocacao | null>(() =>
+    resolveConvocacaoStatus(item),
+  );
+
+  useEffect(() => {
+    setConvocacaoStatus(resolveConvocacaoStatus(item));
+  }, [item.id, item.tipo, item.evento_id, item.convocacao_status]);
   const config = TIPO_CONFIG[item.tipo];
   const isPrivate = item.atleta_id !== null;
   const showUnread = mode === "active" && isPrivate && !item.lido;
+  const isConvocacao = item.tipo === "convocacao" && item.evento_id;
+  const convocacaoPendente = isConvocacao && convocacaoStatus === "pendente";
+
+  async function handleResponder(resposta: "aceito" | "recusado") {
+    if (!item.evento_id) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/convocacoes/responder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: accessToken,
+          evento_id: item.evento_id,
+          resposta,
+        }),
+      });
+      if (res.ok) {
+        setConvocacaoStatus(resposta);
+        router.refresh();
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleArchive() {
     setLoading(true);
@@ -187,7 +226,37 @@ function FeedCard({
         <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{item.corpo}</p>
       )}
 
-      <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+      {isConvocacao && convocacaoStatus && convocacaoStatus !== "pendente" && (
+        <p className="mt-2">
+          <span
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${CONVOCACAO_STATUS_BADGE[convocacaoStatus]}`}
+          >
+            {CONVOCACAO_STATUS_LABEL[convocacaoStatus]}
+          </span>
+        </p>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">
+        {mode === "active" && convocacaoPendente && (
+          <>
+            <button
+              type="button"
+              onClick={() => handleResponder("recusado")}
+              disabled={loading}
+              className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Recusar
+            </button>
+            <button
+              type="button"
+              onClick={() => handleResponder("aceito")}
+              disabled={loading}
+              className="text-sm font-medium px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            >
+              {loading ? "Salvando..." : "Aceitar"}
+            </button>
+          </>
+        )}
         {mode === "active" ? (
           <button
             type="button"

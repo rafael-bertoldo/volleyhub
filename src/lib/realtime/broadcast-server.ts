@@ -3,6 +3,7 @@ import {
   FEED_GLOBAL_CHANNEL,
   REALTIME_EVENTS,
   atletaChannel,
+  jogoChannel,
 } from "./channels";
 import type { Anuncio, FeedItem } from "@/lib/types";
 
@@ -63,6 +64,16 @@ export async function broadcastFeedDeleted(feedId: string) {
   }
 }
 
+export async function broadcastFeedDeletedToAtleta(atletaId: string, feedId: string) {
+  try {
+    await sendBroadcast(atletaChannel(atletaId), REALTIME_EVENTS.FEED_DELETED, {
+      id: feedId,
+    });
+  } catch (error) {
+    console.error("Erro ao enviar broadcast de exclusão do feed do atleta:", error);
+  }
+}
+
 export async function broadcastAnuncioDeleted(
   anuncio: Pick<Anuncio, "id" | "titulo" | "corpo" | "imagem_url">,
 ) {
@@ -106,5 +117,17 @@ export async function broadcastConvocacaoUpdate(atletaId: string, payload: unkno
     );
   } catch (error) {
     console.error("Erro ao enviar broadcast de convocação:", error);
+  }
+}
+
+export async function broadcastJogoConvocacaoUpdate(eventoId: string, payload: unknown) {
+  try {
+    await sendBroadcast(
+      jogoChannel(eventoId),
+      REALTIME_EVENTS.CONVOCACAO_UPDATE,
+      payload,
+    );
+  } catch (error) {
+    console.error("Erro ao enviar broadcast de convocação do jogo:", error);
   }
 }
