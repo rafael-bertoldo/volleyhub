@@ -57,3 +57,41 @@ export interface Anuncio {
   imagem_url: string | null;
   criado_em: string;
 }
+
+export type TipoEvento = "treino" | "amistoso" | "jogo";
+export type OrigemEvento = "recorrente" | "manual";
+export type StatusPresenca =
+  | "reservado"
+  | "confirmado"
+  | "liberado"
+  | "fila_espera"
+  | "aguardando_pagamento";
+
+export interface Evento {
+  id: string;
+  tipo: TipoEvento;
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+  local: string;
+  capacidade: number;
+  confirmacao_abre_em: string | null;
+  confirmacao_fecha_em: string | null;
+  origem: OrigemEvento;
+  criado_em: string;
+}
+
+export interface Presenca {
+  id: string;
+  evento_id: string;
+  atleta_id: string;
+  status: StatusPresenca;
+  posicao_fila: number | null;
+  criado_em: string;
+  confirmado_em: string | null;
+}
+
+export interface TreinoComPresenca extends Evento {
+  presenca: Presenca | null;
+  vagas_ocupadas: number;
+}

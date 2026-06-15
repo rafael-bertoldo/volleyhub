@@ -4,7 +4,7 @@ import { getAdminUser } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { APP_NAME } from "@/lib/constants";
 import { AppShell } from "@/components/layout/app-shell";
-import { IconFeed, IconLink, IconUsers } from "@/components/layout/icons";
+import { IconCalendar, IconFeed, IconLink, IconUsers } from "@/components/layout/icons";
 import { LogoutButton } from "../logout-button";
 
 interface LayoutProps {
@@ -28,6 +28,11 @@ export default async function AdminDashboardLayout({ children }: LayoutProps) {
       headerActions={<LogoutButton />}
       navItems={[
         { href: "/admin/anuncios", label: "Anúncios", icon: <IconFeed className="w-5 h-5" /> },
+        {
+          href: "/admin/treinos",
+          label: "Treinos",
+          icon: <IconCalendar className="w-5 h-5" />,
+        },
         {
           href: "/admin/atletas",
           label: "Atletas",

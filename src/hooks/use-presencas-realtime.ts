@@ -1,48 +1,66 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { REALTIME_EVENTS } from "@/lib/realtime/channels";
 
 /**
- * Escuta atualizações da lista de presença de um treino em tempo real.
- * Usar na página de treinos quando implementada.
+ * Escuta atualizações de presença (broadcast + postgres_changes) para um treino.
  */
 export function usePresencasRealtime(
   eventoId: string | null,
   onUpdate: () => void,
 ) {
+  const eventoIds = eventoId ? [eventoId] : [];
+  useTreinosPresencaRealtime(eventoIds, onUpdate);
+}
+
+/**
+ * Escuta presenças de vários treinos — uma inscrição por evento, sem conflito de canal.
+ */
+export function useTreinosPresencaRealtime(
+  eventoIds: string[],
+  onUpdate: () => void,
+) {
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
+  const idsKey = eventoIds.join(",");
+
   useEffect(() => {
-    if (!eventoId) return;
+    if (!eventoIds.length) return;
 
     const supabase = createClient();
-
-    const pgChannel = supabase
-      .channel(`presencas-pg:${eventoId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "presencas",
-          filter: `evento_id=eq.${eventoId}`,
-        },
-        () => onUpdate(),
-      )
-      .subscribe();
-
-    const bcChannel = supabase
-      .channel(`treino:${eventoId}`)
-      .on("broadcast", { event: REALTIME_EVENTS.PRESENCA_UPDATE }, () =>
-        onUpdate(),
-      )
-      .subscribe();
+    const channels = eventoIds.flatMap((eventoId) => [
+      supabase
+        .channel(`treino:${eventoId}`)
+        .on(
+          "broadcast",
+          { event: REALTIME_EVENTS.PRESENCA_UPDATE },
+          () => onUpdateRef.current(),
+        )
+        .subscribe(),
+      supabase
+        .channel(`presencas-pg:${eventoId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "presencas",
+            filter: `evento_id=eq.${eventoId}`,
+          },
+          () => onUpdateRef.current(),
+        )
+        .subscribe(),
+    ]);
 
     return () => {
-      supabase.removeChannel(pgChannel);
-      supabase.removeChannel(bcChannel);
+      for (const ch of channels) {
+        supabase.removeChannel(ch);
+      }
     };
-  }, [eventoId, onUpdate]);
+  }, [idsKey]);
 }
 
 /**
@@ -50,7 +68,6 @@ export function usePresencasRealtime(
  */
 export function useConvocacoesRealtime(
   atletaId: string,
-  onFeedItem: (item: unknown) => void,
   onConvocacaoChange: () => void,
 ) {
   useEffect(() => {
