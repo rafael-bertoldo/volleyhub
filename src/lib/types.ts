@@ -15,6 +15,8 @@ export interface Atleta {
   access_token: string;
   ativo: boolean;
   criado_em: string;
+  mensalidade_mes: string | null;
+  mensalidade_paga_em: string | null;
 }
 
 export interface LinkConvite {

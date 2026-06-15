@@ -4,7 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { MODALIDADE_LABELS } from "@/lib/constants";
 import { CopyLinkButton } from "../../copy-link-button";
 import { AprovarModalidadeButton } from "../../aprovar-modalidade-button";
+import { MensalidadeAtletaCell } from "../../mensalidade-atleta-cell";
 import { StatusBadge } from "../../status-badge";
+import { MENSALIDADE_DIA_LIMITE } from "@/lib/mensalidade";
 import type { Atleta } from "@/lib/types";
 
 export default async function AtletasPage() {
@@ -28,6 +30,7 @@ export default async function AtletasPage() {
         <p className="text-sm text-gray-500 mt-1">
           {(atletas ?? []).length} cadastrados
           {pendentes.length > 0 && ` · ${pendentes.length} pendente(s)`}
+          {" · "}Mensalidade válida até o dia {MENSALIDADE_DIA_LIMITE} de cada mês
         </p>
       </div>
 
@@ -71,6 +74,7 @@ export default async function AtletasPage() {
                   <th className="pb-2 pr-4 font-medium">Nome</th>
                   <th className="pb-2 pr-4 font-medium">Modalidade</th>
                   <th className="pb-2 pr-4 font-medium">Status</th>
+                  <th className="pb-2 pr-4 font-medium">Mensalidade</th>
                   <th className="pb-2 font-medium">Ações</th>
                 </tr>
               </thead>
@@ -86,6 +90,9 @@ export default async function AtletasPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <StatusBadge atleta={atleta} />
+                    </td>
+                    <td className="py-3 pr-4 align-top">
+                      <MensalidadeAtletaCell atleta={atleta} />
                     </td>
                     <td className="py-3">
                       <CopyLinkButton
