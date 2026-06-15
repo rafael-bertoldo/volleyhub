@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { athleteCookieOptions } from "@/lib/auth/athlete-cookie";
 import { ATHLETE_COOKIE_NAME } from "@/lib/constants";
+import { updateSession } from "@/lib/supabase/middleware";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const athleteToken = request.cookies.get(ATHLETE_COOKIE_NAME)?.value;
 
@@ -9,9 +11,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/a/${athleteToken}`, request.url));
   }
 
-  return NextResponse.next();
+  const athletePathMatch = pathname.match(/^\/a\/([^/]+)$/);
+  if (athletePathMatch) {
+    const token = athletePathMatch[1];
+    const response = await updateSession(request);
+    response.cookies.set(athleteCookieOptions(token));
+    return response;
+  }
+
+  return updateSession(request);
 }
 
 export const config = {
-  matcher: ["/"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

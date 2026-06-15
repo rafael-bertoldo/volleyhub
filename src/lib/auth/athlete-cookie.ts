@@ -6,17 +6,6 @@ export async function getAthleteTokenFromCookie(): Promise<string | null> {
   return cookieStore.get(ATHLETE_COOKIE_NAME)?.value ?? null;
 }
 
-export async function setAthleteCookie(token: string) {
-  const cookieStore = await cookies();
-  cookieStore.set(ATHLETE_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: COOKIE_MAX_AGE_SECONDS,
-    path: "/",
-  });
-}
-
 export function athleteCookieOptions(token: string) {
   return {
     name: ATHLETE_COOKIE_NAME,

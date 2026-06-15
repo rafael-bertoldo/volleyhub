@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { setAthleteCookie } from "@/lib/auth/athlete-cookie";
 import { APP_NAME, MODALIDADE_LABELS } from "@/lib/constants";
 import type { Atleta } from "@/lib/types";
 
@@ -24,8 +23,6 @@ export default async function AtletaPage({ params }: PageProps) {
   if (!atleta) {
     notFound();
   }
-
-  await setAthleteCookie(token);
 
   return (
     <main className="min-h-full bg-gray-50">
