@@ -13,7 +13,7 @@ export default function HomePage() {
         Acesse pelo link enviado pelo administrador ou após realizar seu cadastro.
       </p>
       <Link
-        href="/admin"
+        href="/admin/login"
         className="mt-10 text-xs text-violet-400 hover:text-violet-200 transition-colors"
       >
         Área administrativa

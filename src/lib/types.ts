@@ -34,3 +34,26 @@ export interface CadastroFormData {
   interesse_competicoes: InteresseCompeticoes;
   observacoes: string;
 }
+
+export type TipoFeed = "anuncio" | "convocacao" | "lembrete" | "sistema";
+
+export interface FeedItem {
+  id: string;
+  tipo: TipoFeed;
+  atleta_id: string | null;
+  evento_id: string | null;
+  anuncio_id: string | null;
+  titulo: string;
+  corpo: string;
+  imagem_url: string | null;
+  lido: boolean;
+  criado_em: string;
+}
+
+export interface Anuncio {
+  id: string;
+  titulo: string;
+  corpo: string;
+  imagem_url: string | null;
+  criado_em: string;
+}

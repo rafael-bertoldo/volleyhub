@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
 
 export async function updateSession(request: NextRequest) {
@@ -26,8 +27,18 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Atualiza sessão do Supabase Auth (usado no login do admin)
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return supabaseResponse;
+  return { response: supabaseResponse, user };
+}
+
+export function isAllowedAdmin(user: User | null): boolean {
+  if (!user?.email) return false;
+
+  const allowedEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (!allowedEmail) return true;
+
+  return user.email.toLowerCase() === allowedEmail;
 }
