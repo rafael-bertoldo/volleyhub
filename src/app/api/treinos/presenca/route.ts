@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAtletaByToken } from "@/lib/atleta-server";
-import { broadcastPresencaUpdate } from "@/lib/realtime/broadcast-server";
+import { getCurrentPlayer } from "@/lib/player-server";
+import { broadcastAttendanceUpdate } from "@/lib/realtime/broadcast-server";
 import {
-  confirmacaoAberta,
-  confirmacaoAindaNaoAbriu,
-  confirmacaoEncerrada,
+  isConfirmationOpen,
+  confirmationHasNotOpened,
+  confirmationClosed,
 } from "@/lib/treinos";
 import {
-  executarAcaoPresenca,
-  type PresencaAction,
+  executarAcaoAttendance,
+  type AttendanceAction,
 } from "@/lib/treinos-server";
 
-const ACTIONS: PresencaAction[] = [
+const ACTIONS: AttendanceAction[] = [
   "confirmar",
   "cancelar",
   "entrar_fila",
@@ -21,50 +21,49 @@ const ACTIONS: PresencaAction[] = [
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { access_token, evento_id, action } = body as {
-    access_token?: string;
-    evento_id?: string;
+  const { event_id, action } = body as {
+    event_id?: string;
     action?: string;
   };
 
-  if (!access_token || !evento_id || !action) {
+  if (!event_id || !action) {
     return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }
 
-  if (!ACTIONS.includes(action as PresencaAction)) {
+  if (!ACTIONS.includes(action as AttendanceAction)) {
     return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
   }
 
-  const atleta = await getAtletaByToken(access_token);
-  if (!atleta) {
+  const player = await getCurrentPlayer();
+  if (!player) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const supabase = createAdminClient();
-  const { data: evento } = await supabase
-    .from("eventos")
-    .select("confirmacao_abre_em, confirmacao_fecha_em")
-    .eq("id", evento_id)
+  const { data: event } = await supabase
+    .from("events")
+    .select("confirmation_opens_at, confirmation_closes_at")
+    .eq("id", event_id)
     .single();
 
-  if (evento) {
-    if (confirmacaoAindaNaoAbriu(evento.confirmacao_abre_em)) {
+  if (event) {
+    if (confirmationHasNotOpened(event.confirmation_opens_at)) {
       return NextResponse.json(
         { error: "A confirmação de presença ainda não abriu." },
         { status: 400 },
       );
     }
-    if (confirmacaoEncerrada(evento.confirmacao_fecha_em)) {
+    if (confirmationClosed(event.confirmation_closes_at)) {
       return NextResponse.json(
         { error: "O prazo de confirmação encerrou." },
         { status: 400 },
       );
     }
     if (
-      !confirmacaoAberta(
-        evento.confirmacao_abre_em,
-        evento.confirmacao_fecha_em,
+      !isConfirmationOpen(
+        event.confirmation_opens_at,
+        event.confirmation_closes_at,
       )
     ) {
       return NextResponse.json(
@@ -74,17 +73,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const result = await executarAcaoPresenca(
-    atleta,
-    evento_id,
-    action as PresencaAction,
+  const result = await executarAcaoAttendance(
+    player,
+    event_id,
+    action as AttendanceAction,
   );
 
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  await broadcastPresencaUpdate(evento_id, { evento_id, action });
+  await broadcastAttendanceUpdate(event_id, { event_id, action });
 
   return NextResponse.json({ success: true });
 }

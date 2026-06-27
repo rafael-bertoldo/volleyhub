@@ -2,31 +2,36 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MODALIDADES } from "@/lib/constants";
-import type { CadastroFormData, Modalidade } from "@/lib/types";
+import { MEMBERSHIP_TYPES, POSITIONS } from "@/lib/constants";
+import type { SignupFormData, MembershipType } from "@/lib/types";
 
 interface CadastroFormProps {
-  conviteToken: string;
+  conviteToken?: string;
 }
 
 export function CadastroForm({ conviteToken }: CadastroFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [form, setForm] = useState<CadastroFormData>({
-    nome: "",
-    nascimento: "",
-    endereco: "",
-    bairro_cidade: "",
-    modalidade: "" as Modalidade,
-    interesse_competicoes: "" as CadastroFormData["interesse_competicoes"],
-    observacoes: "",
+  const [form, setForm] = useState<SignupFormData>({
+    name: "",
+    nickname: "",
+    birth_date: "",
+    address: "",
+    city_area: "",
+    preferred_position: "",
+    membership_type: "" as MembershipType,
+    competition_interest: "" as SignupFormData["competition_interest"],
+    notes: "",
   });
 
-  function updateField<K extends keyof CadastroFormData>(
+  function updateField<K extends keyof SignupFormData>(
     field: K,
-    value: CadastroFormData[K],
+    value: SignupFormData[K],
   ) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError(null);
@@ -37,21 +42,32 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
     setLoading(true);
     setError(null);
 
+    if (password !== confirmPassword) {
+      setError("As senhas não conferem.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch("/api/cadastro", {
+      const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, convite_token: conviteToken }),
+        body: JSON.stringify({
+          ...form,
+          email,
+          password,
+          convite_token: conviteToken,
+        }),
       });
 
-      const data = await res.json();
+      const date = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Erro ao cadastrar.");
+        setError(date.error ?? "Erro ao cadastrar.");
         return;
       }
 
-      router.push(data.redirect);
+      router.push(date.redirect);
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
@@ -69,67 +85,177 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
 
       <fieldset className="space-y-4">
         <legend className="text-sm font-semibold text-violet-900 uppercase tracking-wide">
+          Acesso
+        </legend>
+
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            E-mail *
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+            className="input-field"
+            placeholder="seu@email.com"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            Senha *
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            minLength={6}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError(null);
+            }}
+            className="input-field"
+            placeholder="Mínimo de 6 caracteres"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="confirm-password"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Confirmar senha *
+          </label>
+          <input
+            id="confirm-password"
+            type="password"
+            required
+            minLength={6}
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              setError(null);
+            }}
+            className="input-field"
+            placeholder="Repita sua senha"
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="text-sm font-semibold text-violet-900 uppercase tracking-wide">
           Dados pessoais
         </legend>
 
         <div>
-          <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
             Nome *
           </label>
           <input
-            id="nome"
+            id="name"
             type="text"
             required
-            value={form.nome}
-            onChange={(e) => updateField("nome", e.target.value)}
+            value={form.name}
+            onChange={(e) => updateField("name", e.target.value)}
             className="input-field"
-            placeholder="Seu nome completo"
+            placeholder="Seu name completo"
           />
         </div>
 
         <div>
-          <label htmlFor="nascimento" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">
+            Apelido
+          </label>
+          <input
+            id="nickname"
+            type="text"
+            value={form.nickname}
+            onChange={(e) => updateField("nickname", e.target.value)}
+            className="input-field"
+            placeholder="Como o time te conhece"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700 mb-1">
             Nascimento *
           </label>
           <input
-            id="nascimento"
+            id="birth_date"
             type="date"
             required
-            value={form.nascimento}
-            onChange={(e) => updateField("nascimento", e.target.value)}
+            value={form.birth_date}
+            onChange={(e) => updateField("birth_date", e.target.value)}
             className="input-field"
           />
         </div>
 
         <div>
-          <label htmlFor="endereco" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
             Endereço *
           </label>
           <input
-            id="endereco"
+            id="address"
             type="text"
             required
-            value={form.endereco}
-            onChange={(e) => updateField("endereco", e.target.value)}
+            value={form.address}
+            onChange={(e) => updateField("address", e.target.value)}
             className="input-field"
             placeholder="Rua, número"
           />
         </div>
 
         <div>
-          <label htmlFor="bairro_cidade" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="city_area" className="block text-sm font-medium text-gray-700 mb-1">
             Bairro / Cidade *
           </label>
           <input
-            id="bairro_cidade"
+            id="city_area"
             type="text"
             required
-            value={form.bairro_cidade}
-            onChange={(e) => updateField("bairro_cidade", e.target.value)}
+            value={form.city_area}
+            onChange={(e) => updateField("city_area", e.target.value)}
             className="input-field"
             placeholder="Bairro, cidade"
           />
         </div>
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-semibold text-violet-900 uppercase tracking-wide">
+          Posição pretendida *
+        </legend>
+
+        {POSITIONS.map((preferred_position) => (
+          <label
+            key={preferred_position.value}
+            className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
+              form.preferred_position === preferred_position.value
+                ? "border-violet-500 bg-violet-50"
+                : "border-gray-200 hover:border-violet-300"
+            }`}
+          >
+            <input
+              type="radio"
+              name="preferred_position"
+              value={preferred_position.value}
+              required
+              checked={form.preferred_position === preferred_position.value}
+              onChange={() => updateField("preferred_position", preferred_position.value)}
+              className="accent-violet-600"
+            />
+            <span className="font-semibold text-gray-900">{preferred_position.label}</span>
+          </label>
+        ))}
       </fieldset>
 
       <fieldset className="space-y-3">
@@ -140,28 +266,28 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
           Modalidades mensalistas dependem de confirmação de disponibilidade pelo administrador.
         </p>
 
-        {MODALIDADES.map((mod) => (
+        {MEMBERSHIP_TYPES.map((mod) => (
           <label
             key={mod.value}
             className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
-              form.modalidade === mod.value
+              form.membership_type === mod.value
                 ? "border-violet-500 bg-violet-50"
                 : "border-gray-200 hover:border-violet-300"
             }`}
           >
             <input
               type="radio"
-              name="modalidade"
+              name="membership_type"
               value={mod.value}
               required
-              checked={form.modalidade === mod.value}
-              onChange={() => updateField("modalidade", mod.value)}
+              checked={form.membership_type === mod.value}
+              onChange={() => updateField("membership_type", mod.value)}
               className="mt-1 accent-violet-600"
             />
             <div>
               <span className="font-semibold text-gray-900">{mod.label}</span>
-              <p className="text-sm text-gray-600">{mod.descricao}</p>
-              {mod.requerAprovacao && (
+              <p className="text-sm text-gray-600">{mod.description}</p>
+              {mod.requiresApproval && (
                 <p className="text-xs text-amber-600 mt-0.5">Sujeito a confirmação do admin</p>
               )}
             </div>
@@ -176,18 +302,18 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
 
         <label
           className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
-            form.interesse_competicoes === "sim"
+            form.competition_interest === "yes"
               ? "border-violet-500 bg-violet-50"
               : "border-gray-200 hover:border-violet-300"
           }`}
         >
           <input
             type="radio"
-            name="interesse_competicoes"
-            value="sim"
+            name="competition_interest"
+            value="yes"
             required
-            checked={form.interesse_competicoes === "sim"}
-            onChange={() => updateField("interesse_competicoes", "sim")}
+            checked={form.competition_interest === "yes"}
+            onChange={() => updateField("competition_interest", "yes")}
             className="accent-violet-600"
           />
           <span className="text-sm text-gray-800">Tenho interesse e disponibilidade</span>
@@ -195,18 +321,18 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
 
         <label
           className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
-            form.interesse_competicoes === "nao"
+            form.competition_interest === "no"
               ? "border-violet-500 bg-violet-50"
               : "border-gray-200 hover:border-violet-300"
           }`}
         >
           <input
             type="radio"
-            name="interesse_competicoes"
-            value="nao"
+            name="competition_interest"
+            value="no"
             required
-            checked={form.interesse_competicoes === "nao"}
-            onChange={() => updateField("interesse_competicoes", "nao")}
+            checked={form.competition_interest === "no"}
+            onChange={() => updateField("competition_interest", "no")}
             className="accent-violet-600"
           />
           <span className="text-sm text-gray-800">No momento não</span>
@@ -214,14 +340,14 @@ export function CadastroForm({ conviteToken }: CadastroFormProps) {
       </fieldset>
 
       <div>
-        <label htmlFor="observacoes" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
           Observações
         </label>
         <textarea
-          id="observacoes"
+          id="notes"
           rows={3}
-          value={form.observacoes}
-          onChange={(e) => updateField("observacoes", e.target.value)}
+          value={form.notes}
+          onChange={(e) => updateField("notes", e.target.value)}
           className="input-field resize-none"
           placeholder="Informações que julgar importantes..."
         />

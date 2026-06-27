@@ -5,14 +5,14 @@ import { useState } from "react";
 
 export function JogoForm() {
   const router = useRouter();
-  const [tipo, setTipo] = useState<"jogo" | "amistoso">("jogo");
-  const [data, setData] = useState("");
+  const [type, setTipo] = useState<"game" | "friendly">("game");
+  const [date, setData] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
   const [horaFim, setHoraFim] = useState("");
-  const [local, setLocal] = useState("");
-  const [adversario, setAdversario] = useState("");
-  const [capacidade, setCapacidade] = useState("12");
-  const [observacoes, setObservacoes] = useState("");
+  const [location, setLocal] = useState("");
+  const [opponent, setAdversario] = useState("");
+  const [capacity, setCapacidade] = useState("12");
+  const [notes, setObservacoes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,18 +22,18 @@ export function JogoForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/jogos", {
+      const res = await fetch("/api/admin/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tipo,
-          data,
-          hora_inicio: horaInicio,
-          hora_fim: horaFim,
-          local,
-          adversario,
-          capacidade: Number(capacidade),
-          observacoes,
+          type,
+          date,
+          start_time: horaInicio,
+          end_time: horaFim,
+          location,
+          opponent,
+          capacity: Number(capacity),
+          notes,
         }),
       });
 
@@ -61,12 +61,12 @@ export function JogoForm() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
           <select
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value as "jogo" | "amistoso")}
+            value={type}
+            onChange={(e) => setTipo(e.target.value as "game" | "friendly")}
             className="input-field"
           >
-            <option value="jogo">Competição</option>
-            <option value="amistoso">Amistoso</option>
+            <option value="game">Competição</option>
+            <option value="friendly">Amistoso</option>
           </select>
         </div>
         <div>
@@ -75,7 +75,7 @@ export function JogoForm() {
             type="number"
             min={1}
             max={99}
-            value={capacidade}
+            value={capacity}
             onChange={(e) => setCapacidade(e.target.value)}
             className="input-field"
             required
@@ -88,7 +88,7 @@ export function JogoForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
           <input
             type="date"
-            value={data}
+            value={date}
             onChange={(e) => setData(e.target.value)}
             className="input-field"
             required
@@ -120,7 +120,7 @@ export function JogoForm() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Adversário</label>
         <input
           type="text"
-          value={adversario}
+          value={opponent}
           onChange={(e) => setAdversario(e.target.value)}
           placeholder="Nome do time adversário"
           className="input-field"
@@ -132,7 +132,7 @@ export function JogoForm() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Local</label>
         <input
           type="text"
-          value={local}
+          value={location}
           onChange={(e) => setLocal(e.target.value)}
           placeholder="Ginásio, endereço..."
           className="input-field"
@@ -144,7 +144,7 @@ export function JogoForm() {
           Observações <span className="text-gray-400 font-normal">(opcional)</span>
         </label>
         <textarea
-          value={observacoes}
+          value={notes}
           onChange={(e) => setObservacoes(e.target.value)}
           rows={2}
           className="input-field resize-none"
@@ -159,7 +159,7 @@ export function JogoForm() {
         disabled={loading}
         className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
       >
-        {loading ? "Salvando..." : "Criar evento"}
+        {loading ? "Salvando..." : "Criar jogo"}
       </button>
     </form>
   );

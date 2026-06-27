@@ -1,7 +1,7 @@
-import type { Atleta } from "@/lib/types";
+import type { Player } from "@/lib/types";
 
-export function StatusBadge({ atleta }: { atleta: Atleta }) {
-  if (atleta.modalidade === "A") {
+export function StatusBadge({ player }: { player: Player }) {
+  if (player.membership_type === "A") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
         Avulso
@@ -10,22 +10,22 @@ export function StatusBadge({ atleta }: { atleta: Atleta }) {
   }
 
   const map = {
-    pendente: "bg-amber-100 text-amber-700",
-    aprovado: "bg-green-100 text-green-700",
-    recusado: "bg-red-100 text-red-700",
+    pending: "bg-amber-100 text-amber-700",
+    approved: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
   };
 
   const labels = {
-    pendente: "Pendente",
-    aprovado: "Aprovado",
-    recusado: "Recusado",
+    pending: "Pendente",
+    approved: "Aprovado",
+    rejected: "Recusado",
   };
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${map[atleta.modalidade_status]}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${map[player.membership_status]}`}
     >
-      {labels[atleta.modalidade_status]}
+      {labels[player.membership_status]}
     </span>
   );
 }

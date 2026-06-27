@@ -7,11 +7,11 @@ import {
   formatConviteDate,
   getConviteStatus,
 } from "@/lib/convites";
-import type { LinkConvite } from "@/lib/types";
+import type { InviteLink } from "@/lib/types";
 import { CopyLinkButton } from "./copy-link-button";
 
 interface ConvitesListProps {
-  convites: LinkConvite[];
+  convites: InviteLink[];
   appUrl: string;
 }
 
@@ -46,14 +46,14 @@ export function ConvitesList({ convites, appUrl }: ConvitesListProps) {
             <p className="text-xs text-gray-500 break-all font-mono">{url}</p>
 
             <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <span>Criado em {formatConviteDate(convite.criado_em)}</span>
-              {convite.expira_em && (
-                <span>Expira em {formatConviteDate(convite.expira_em)}</span>
+              <span>Criado em {formatConviteDate(convite.created_at)}</span>
+              {convite.expires_at && (
+                <span>Expira em {formatConviteDate(convite.expires_at)}</span>
               )}
             </div>
 
             {podeCopiar && (
-              <CopyLinkButton url={url} nome={convite.token} />
+              <CopyLinkButton url={url} name={convite.token} />
             )}
           </article>
         );

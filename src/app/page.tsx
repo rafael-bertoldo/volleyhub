@@ -9,9 +9,20 @@ export default function HomePage() {
       <p className="text-violet-200 mb-8 max-w-sm">
         Sistema de gerenciamento do time de vôlei
       </p>
-      <p className="text-sm text-violet-300">
-        Acesse pelo link enviado pelo administrador ou após realizar seu cadastro.
-      </p>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Link
+          href="/login"
+          className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-violet-800 hover:bg-violet-50 transition-colors"
+        >
+          Entrar como player
+        </Link>
+        <Link
+          href="/signup"
+          className="rounded-xl border border-violet-300 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800 transition-colors"
+        >
+          Fazer cadastro
+        </Link>
+      </div>
       <Link
         href="/admin/login"
         className="mt-10 text-xs text-violet-400 hover:text-violet-200 transition-colors"

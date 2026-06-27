@@ -2,69 +2,70 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   addDays,
   combineDateTime,
-  diaSemanaFromData,
-  diasVisiveisParaAtleta,
-  eventoChave,
-  getIntervaloSemanaAtual,
+  weekdayFromDate,
+  visibleWeekdaysForPlayer,
+  eventKey,
+  getUpcomingWeeksRange,
   getMondayOfWeek,
-  modalidadesParaDia,
-  normalizeHora,
-  STATUS_OCUPA_VAGA,
+  membershipTypesForWeekday,
+  normalizeTime,
+  ATTENDANCE_OCCUPIES_SPOT,
   toDateString,
 } from "@/lib/treinos";
 import type {
-  Atleta,
-  Evento,
-  Modalidade,
-  Presenca,
-  StatusPresenca,
-  TreinoComPresenca,
+  Player,
+  Event,
+  MembershipType,
+  Attendance,
+  AttendanceStatus,
+  TrainingWithAttendance,
 } from "@/lib/types";
 
 const CONFIRMATION_DAYS_BEFORE = 7;
 
-export interface ParticipanteTreino {
-  presenca_id: string;
-  atleta_id: string;
-  nome: string;
-  modalidade: Modalidade;
-  status: StatusPresenca;
-  posicao_fila: number | null;
-  confirmado_em: string | null;
+export interface TrainingParticipant {
+  attendance_id: string;
+  player_id: string;
+  name: string;
+  nickname: string | null;
+  membership_type: MembershipType;
+  status: AttendanceStatus;
+  waitlist_position: number | null;
+  confirmed_at: string | null;
 }
 
-function dedupeEventos(eventos: Evento[]): Evento[] {
-  const seen = new Map<string, Evento>();
-  for (const e of eventos) {
-    const key = eventoChave(e.data, e.hora_inicio);
+function dedupeEvents(events: Event[]): Event[] {
+  const seen = new Map<string, Event>();
+  for (const e of events) {
+    const key = eventKey(e.date, e.start_time);
     const existing = seen.get(key);
     if (!existing || e.id < existing.id) {
       seen.set(key, e);
     }
   }
   return [...seen.values()].sort((a, b) => {
-    const cmp = a.data.localeCompare(b.data);
+    const cmp = a.date.localeCompare(b.date);
     if (cmp !== 0) return cmp;
-    return normalizeHora(a.hora_inicio).localeCompare(normalizeHora(b.hora_inicio));
+    return normalizeTime(a.start_time).localeCompare(normalizeTime(b.start_time));
   });
 }
 
 interface TreinoRecorrente {
   id: string;
-  dia_semana: number;
-  hora_inicio: string;
-  hora_fim: string;
-  local: string;
-  capacidade: number;
-  ativo: boolean;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  location: string;
+  capacity: number;
+  active: boolean;
 }
 
-export async function ensureEventosSemana(weekMonday?: Date) {
+export async function ensureEventsSemana(weekMonday?: Date) {
   const supabase = createAdminClient();
   const { data: recorrentes } = await supabase
-    .from("treinos_recorrentes")
+    .from("recurring_trainings")
     .select("*")
-    .eq("ativo", true);
+    .eq("active", true);
 
   if (!recorrentes?.length) return;
 
@@ -73,369 +74,374 @@ export async function ensureEventosSemana(weekMonday?: Date) {
   for (let offset = 0; offset < 7; offset++) {
     const dia = addDays(monday, offset);
     const diaSemana = dia.getDay();
-    const data = toDateString(dia);
+    const date = toDateString(dia);
 
     for (const tr of recorrentes as TreinoRecorrente[]) {
-      if (tr.dia_semana !== diaSemana) continue;
+      if (tr.weekday !== diaSemana) continue;
 
-      const horaInicio = normalizeHora(tr.hora_inicio);
-      const horaFim = normalizeHora(tr.hora_fim);
+      const horaInicio = normalizeTime(tr.start_time);
+      const horaFim = normalizeTime(tr.end_time);
 
       const { data: existingList } = await supabase
-        .from("eventos")
+        .from("events")
         .select("id")
-        .eq("tipo", "treino")
-        .eq("origem", "recorrente")
-        .eq("data", data)
-        .eq("hora_inicio", horaInicio)
+        .eq("type", "training")
+        .eq("source", "recurring")
+        .eq("date", date)
+        .eq("start_time", horaInicio)
         .limit(1);
 
       if (existingList?.length) continue;
 
-      const inicio = combineDateTime(data, horaInicio);
+      const inicio = combineDateTime(date, horaInicio);
       const abre = addDays(inicio, -CONFIRMATION_DAYS_BEFORE);
       abre.setHours(0, 0, 0, 0);
 
-      const { data: evento, error } = await supabase
-        .from("eventos")
+      const { data: event, error } = await supabase
+        .from("events")
         .insert({
-          tipo: "treino",
-          data,
-          hora_inicio: horaInicio,
-          hora_fim: horaFim,
-          local: tr.local,
-          capacidade: tr.capacidade,
-          confirmacao_abre_em: abre.toISOString(),
-          confirmacao_fecha_em: inicio.toISOString(),
-          origem: "recorrente",
+          type: "training",
+          date,
+          start_time: horaInicio,
+          end_time: horaFim,
+          location: tr.location,
+          capacity: tr.capacity,
+          confirmation_opens_at: abre.toISOString(),
+          confirmation_closes_at: inicio.toISOString(),
+          source: "recurring",
         })
         .select()
         .single();
 
       if (error) {
         if (error.code === "23505") continue;
-        console.error("Erro ao criar evento da semana:", error);
+        console.error("Erro ao criar treino da semana:", error);
         continue;
       }
 
-      if (!evento) continue;
+      if (!event) continue;
     }
   }
 }
 
-/** Gera treinos da semana e garante reservas dos mensalistas em todos os eventos */
-export async function gerarTreinosSemana(weekMonday?: Date) {
-  await ensureEventosSemana(weekMonday);
-  await syncAllPresencasReservadas(weekMonday);
-}
-
-export async function syncAllPresencasReservadas(weekMonday?: Date) {
+/** Gera treinos da semana atual e da próxima, garantindo reservas dos members. */
+export async function generateWeeklyTrainings(weekMonday?: Date) {
   const monday = weekMonday ?? getMondayOfWeek(new Date());
-  const fimSemana = toDateString(addDays(monday, 6));
+  const weeks = [monday, addDays(monday, 7)];
 
-  const supabase = createAdminClient();
-  const { data: eventos } = await supabase
-    .from("eventos")
-    .select("*")
-    .eq("tipo", "treino")
-    .gte("data", toDateString(monday))
-    .lte("data", fimSemana);
-
-  for (const evento of dedupeEventos((eventos ?? []) as Evento[])) {
-    await syncPresencasReservadas(evento);
+  for (const week of weeks) {
+    await ensureEventsSemana(week);
+    await syncAllAttendancesReservadas(week);
   }
 }
 
-export async function syncPresencasReservadas(evento: Evento) {
+export async function syncAllAttendancesReservadas(weekMonday?: Date) {
+  const monday = weekMonday ?? getMondayOfWeek(new Date());
+  const weekEnd = toDateString(addDays(monday, 6));
+
   const supabase = createAdminClient();
-  const diaSemana = diaSemanaFromData(evento.data);
-  const modalidades = modalidadesParaDia(diaSemana);
+  const { data: events } = await supabase
+    .from("events")
+    .select("*")
+    .eq("type", "training")
+    .gte("date", toDateString(monday))
+    .lte("date", weekEnd);
 
-  if (!modalidades.length) return;
+  for (const event of dedupeEvents((events ?? []) as Event[])) {
+    await syncAttendancesReservadas(event);
+  }
+}
 
-  const { data: atletas } = await supabase
-    .from("atletas")
-    .select("id, modalidade")
-    .eq("ativo", true)
-    .eq("modalidade_status", "aprovado")
-    .in("modalidade", modalidades);
+export async function syncAttendancesReservadas(event: Event) {
+  const supabase = createAdminClient();
+  const diaSemana = weekdayFromDate(event.date);
+  const membership_types = membershipTypesForWeekday(diaSemana);
 
-  if (!atletas?.length) return;
+  if (!membership_types.length) return;
+
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, membership_type")
+    .eq("active", true)
+    .eq("membership_status", "approved")
+    .in("membership_type", membership_types);
+
+  if (!players?.length) return;
 
   const { data: existentes } = await supabase
-    .from("presencas")
-    .select("atleta_id")
-    .eq("evento_id", evento.id);
+    .from("attendances")
+    .select("player_id")
+    .eq("event_id", event.id);
 
-  const jaTem = new Set((existentes ?? []).map((p) => p.atleta_id));
-  const novos = atletas.filter((a) => !jaTem.has(a.id));
+  const jaTem = new Set((existentes ?? []).map((p) => p.player_id));
+  const novos = players.filter((a) => !jaTem.has(a.id));
 
   if (!novos.length) return;
 
-  await supabase.from("presencas").insert(
+  await supabase.from("attendances").insert(
     novos.map((a) => ({
-      evento_id: evento.id,
-      atleta_id: a.id,
-      status: "reservado" as StatusPresenca,
+      event_id: event.id,
+      player_id: a.id,
+      status: "reserved" as AttendanceStatus,
     })),
   );
 }
 
-export async function getTreinosParaAtleta(atleta: Atleta): Promise<TreinoComPresenca[]> {
-  await gerarTreinosSemana();
+export async function getTreinosParaPlayer(player: Player): Promise<TrainingWithAttendance[]> {
+  await generateWeeklyTrainings();
 
   const supabase = createAdminClient();
-  const { hoje, fimSemana } = getIntervaloSemanaAtual();
-  const diasPermitidos = diasVisiveisParaAtleta(atleta.modalidade);
+  const { today, weekEnd } = getUpcomingWeeksRange();
+  const diasPermitidos = visibleWeekdaysForPlayer(player.membership_type);
 
-  const { data: eventos } = await supabase
-    .from("eventos")
+  const { data: events } = await supabase
+    .from("events")
     .select("*")
-    .eq("tipo", "treino")
-    .gte("data", hoje)
-    .lte("data", fimSemana)
-    .order("data", { ascending: true })
-    .order("hora_inicio", { ascending: true });
+    .eq("type", "training")
+    .gte("date", today)
+    .lte("date", weekEnd)
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true });
 
-  if (!eventos?.length) return [];
+  if (!events?.length) return [];
 
-  const filtrados = dedupeEventos(
-    (eventos as Evento[]).filter((e) =>
-      diasPermitidos.includes(diaSemanaFromData(e.data)),
+  const filtrados = dedupeEvents(
+    (events as Event[]).filter((e) =>
+      diasPermitidos.includes(weekdayFromDate(e.date)),
     ),
   );
 
   if (!filtrados.length) return [];
 
-  const eventoIds = filtrados.map((e) => e.id);
+  const eventIds = filtrados.map((e) => e.id);
 
-  const [{ data: presencas }, { data: ocupadas }] = await Promise.all([
+  const [{ data: attendances }, { data: ocupadas }] = await Promise.all([
     supabase
-      .from("presencas")
+      .from("attendances")
       .select("*")
-      .eq("atleta_id", atleta.id)
-      .in("evento_id", eventoIds),
+      .eq("player_id", player.id)
+      .in("event_id", eventIds),
     supabase
-      .from("presencas")
-      .select("evento_id")
-      .in("evento_id", eventoIds)
-      .in("status", STATUS_OCUPA_VAGA),
+      .from("attendances")
+      .select("event_id")
+      .in("event_id", eventIds)
+      .in("status", ATTENDANCE_OCCUPIES_SPOT),
   ]);
 
-  const presencaMap = new Map(
-    ((presencas ?? []) as Presenca[]).map((p) => [p.evento_id, p]),
+  const attendanceMap = new Map(
+    ((attendances ?? []) as Attendance[]).map((p) => [p.event_id, p]),
   );
 
   const ocupadasMap = new Map<string, number>();
   for (const row of ocupadas ?? []) {
-    ocupadasMap.set(row.evento_id, (ocupadasMap.get(row.evento_id) ?? 0) + 1);
+    ocupadasMap.set(row.event_id, (ocupadasMap.get(row.event_id) ?? 0) + 1);
   }
 
-  return filtrados.map((evento) => ({
-    ...evento,
-    presenca: presencaMap.get(evento.id) ?? null,
-    vagas_ocupadas: ocupadasMap.get(evento.id) ?? 0,
+  return filtrados.map((event) => ({
+    ...event,
+    attendance: attendanceMap.get(event.id) ?? null,
+    occupied_spots: ocupadasMap.get(event.id) ?? 0,
   }));
 }
 
-export async function countVagasOcupadas(eventoId: string) {
+export async function countVagasOcupadas(eventId: string) {
   const supabase = createAdminClient();
   const { count } = await supabase
-    .from("presencas")
+    .from("attendances")
     .select("*", { count: "exact", head: true })
-    .eq("evento_id", eventoId)
-    .in("status", STATUS_OCUPA_VAGA);
+    .eq("event_id", eventId)
+    .in("status", ATTENDANCE_OCCUPIES_SPOT);
   return count ?? 0;
 }
 
-async function renumberWaitlist(eventoId: string) {
+async function renumberWaitlist(eventId: string) {
   const supabase = createAdminClient();
   const { data: fila } = await supabase
-    .from("presencas")
+    .from("attendances")
     .select("id")
-    .eq("evento_id", eventoId)
-    .eq("status", "fila_espera")
-    .order("posicao_fila", { ascending: true });
+    .eq("event_id", eventId)
+    .eq("status", "waitlist")
+    .order("waitlist_position", { ascending: true });
 
   for (let i = 0; i < (fila ?? []).length; i++) {
     await supabase
-      .from("presencas")
-      .update({ posicao_fila: i + 1 })
+      .from("attendances")
+      .update({ waitlist_position: i + 1 })
       .eq("id", fila![i].id);
   }
 }
 
-export async function promoteWaitlist(eventoId: string, capacidade: number) {
-  const ocupadas = await countVagasOcupadas(eventoId);
-  if (ocupadas >= capacidade) return;
+export async function promoteWaitlist(eventId: string, capacity: number) {
+  const ocupadas = await countVagasOcupadas(eventId);
+  if (ocupadas >= capacity) return;
 
   const supabase = createAdminClient();
   const { data: next } = await supabase
-    .from("presencas")
-    .select("id, atleta_id")
-    .eq("evento_id", eventoId)
-    .eq("status", "fila_espera")
-    .order("posicao_fila", { ascending: true })
+    .from("attendances")
+    .select("id, player_id")
+    .eq("event_id", eventId)
+    .eq("status", "waitlist")
+    .order("waitlist_position", { ascending: true })
     .limit(1)
     .maybeSingle();
 
   if (!next) return;
 
-  const { data: atleta } = await supabase
-    .from("atletas")
-    .select("modalidade")
-    .eq("id", next.atleta_id)
+  const { data: player } = await supabase
+    .from("players")
+    .select("membership_type")
+    .eq("id", next.player_id)
     .single();
 
-  const newStatus: StatusPresenca =
-    atleta?.modalidade === "A" ? "aguardando_pagamento" : "reservado";
+  const newStatus: AttendanceStatus =
+    player?.membership_type === "A" ? "pending_payment" : "reserved";
 
   await supabase
-    .from("presencas")
-    .update({ status: newStatus, posicao_fila: null, confirmado_em: null })
+    .from("attendances")
+    .update({ status: newStatus, waitlist_position: null, confirmed_at: null })
     .eq("id", next.id);
 
-  await renumberWaitlist(eventoId);
-  await promoteWaitlist(eventoId, capacidade);
+  await renumberWaitlist(eventId);
+  await promoteWaitlist(eventId, capacity);
 }
 
-export type PresencaAction =
+export type AttendanceAction =
   | "confirmar"
   | "cancelar"
   | "entrar_fila"
   | "sair_fila"
   | "solicitar_vaga";
 
-export async function executarAcaoPresenca(
-  atleta: Atleta,
-  eventoId: string,
-  action: PresencaAction,
+export async function executarAcaoAttendance(
+  player: Player,
+  eventId: string,
+  action: AttendanceAction,
 ): Promise<{ error?: string }> {
   const supabase = createAdminClient();
 
-  const { data: evento } = await supabase
-    .from("eventos")
+  const { data: event } = await supabase
+    .from("events")
     .select("*")
-    .eq("id", eventoId)
-    .eq("tipo", "treino")
+    .eq("id", eventId)
+    .eq("type", "training")
     .single();
 
-  if (!evento) return { error: "Treino não encontrado." };
+  if (!event) return { error: "Treino não encontrado." };
 
-  const ev = evento as Evento;
-  const diaSemana = diaSemanaFromData(ev.data);
+  const ev = event as Event;
+  const diaSemana = weekdayFromDate(ev.date);
 
-  if (!diasVisiveisParaAtleta(atleta.modalidade).includes(diaSemana)) {
+  if (!visibleWeekdaysForPlayer(player.membership_type).includes(diaSemana)) {
     return { error: "Treino não disponível para sua modalidade." };
   }
 
-  const { data: presenca } = await supabase
-    .from("presencas")
+  const { data: attendance } = await supabase
+    .from("attendances")
     .select("*")
-    .eq("evento_id", eventoId)
-    .eq("atleta_id", atleta.id)
+    .eq("event_id", eventId)
+    .eq("player_id", player.id)
     .maybeSingle();
 
-  const p = presenca as Presenca | null;
+  const p = attendance as Attendance | null;
 
-  if (atleta.modalidade !== "A" && atleta.modalidade_status !== "aprovado") {
+  if (player.membership_type !== "A" && player.membership_status !== "approved") {
     return { error: "Sua modalidade ainda não foi aprovada." };
   }
 
   if (action === "confirmar") {
-    if (!p || p.status !== "reservado") {
+    if (!p || p.status !== "reserved") {
       return { error: "Não há vaga reservada para confirmar." };
     }
     await supabase
-      .from("presencas")
-      .update({ status: "confirmado", confirmado_em: new Date().toISOString() })
+      .from("attendances")
+      .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
       .eq("id", p.id);
     return {};
   }
 
   if (action === "cancelar") {
-    if (!p || !["reservado", "confirmado"].includes(p.status)) {
+    if (!p || !["reserved", "confirmed"].includes(p.status)) {
       return { error: "Não há presença ativa para cancelar." };
     }
     await supabase
-      .from("presencas")
-      .update({ status: "liberado", confirmado_em: null, posicao_fila: null })
+      .from("attendances")
+      .update({ status: "released", confirmed_at: null, waitlist_position: null })
       .eq("id", p.id);
-    await promoteWaitlist(eventoId, ev.capacidade);
+    await promoteWaitlist(eventId, ev.capacity);
     return {};
   }
 
   if (action === "entrar_fila") {
-    if (atleta.modalidade !== "A") {
-      return { error: "Apenas avulsos entram na fila de espera." };
+    if (player.membership_type !== "A") {
+      return { error: "Apenas dropIns entram na fila de espera." };
     }
-    if (p && p.status !== "liberado") {
+    if (p && p.status !== "released") {
       return { error: "Você já está inscrito neste treino." };
     }
     const { data: fila } = await supabase
-      .from("presencas")
-      .select("posicao_fila")
-      .eq("evento_id", eventoId)
-      .eq("status", "fila_espera")
-      .order("posicao_fila", { ascending: false })
+      .from("attendances")
+      .select("waitlist_position")
+      .eq("event_id", eventId)
+      .eq("status", "waitlist")
+      .order("waitlist_position", { ascending: false })
       .limit(1);
 
-    const proximaPos = (fila?.[0]?.posicao_fila ?? 0) + 1;
+    const proximaPos = (fila?.[0]?.waitlist_position ?? 0) + 1;
 
     if (p) {
       await supabase
-        .from("presencas")
-        .update({ status: "fila_espera", posicao_fila: proximaPos })
+        .from("attendances")
+        .update({ status: "waitlist", waitlist_position: proximaPos })
         .eq("id", p.id);
     } else {
-      await supabase.from("presencas").insert({
-        evento_id: eventoId,
-        atleta_id: atleta.id,
-        status: "fila_espera",
-        posicao_fila: proximaPos,
+      await supabase.from("attendances").insert({
+        event_id: eventId,
+        player_id: player.id,
+        status: "waitlist",
+        waitlist_position: proximaPos,
       });
     }
     return {};
   }
 
   if (action === "sair_fila") {
-    if (!p || p.status !== "fila_espera") {
+    if (!p || p.status !== "waitlist") {
       return { error: "Você não está na fila de espera." };
     }
     await supabase
-      .from("presencas")
-      .update({ status: "liberado", posicao_fila: null })
+      .from("attendances")
+      .update({ status: "released", waitlist_position: null })
       .eq("id", p.id);
-    await renumberWaitlist(eventoId);
+    await renumberWaitlist(eventId);
     return {};
   }
 
   if (action === "solicitar_vaga") {
-    if (atleta.modalidade !== "A") {
-      return { error: "Apenas avulsos solicitam vaga avulsa." };
+    if (player.membership_type !== "A") {
+      return { error: "Apenas dropIns solicitam vaga avulsa." };
     }
-    const ocupadas = await countVagasOcupadas(eventoId);
-    if (ocupadas >= ev.capacidade) {
+    const ocupadas = await countVagasOcupadas(eventId);
+    if (ocupadas >= ev.capacity) {
       return { error: "Não há vagas disponíveis. Entre na fila de espera." };
     }
-    if (p && p.status !== "liberado") {
+    if (p && p.status !== "released") {
       return { error: "Você já está inscrito neste treino." };
     }
 
     if (p) {
       await supabase
-        .from("presencas")
+        .from("attendances")
         .update({
-          status: "aguardando_pagamento",
-          posicao_fila: null,
-          confirmado_em: null,
+          status: "pending_payment",
+          waitlist_position: null,
+          confirmed_at: null,
         })
         .eq("id", p.id);
     } else {
-      await supabase.from("presencas").insert({
-        evento_id: eventoId,
-        atleta_id: atleta.id,
-        status: "aguardando_pagamento",
+      await supabase.from("attendances").insert({
+        event_id: eventId,
+        player_id: player.id,
+        status: "pending_payment",
       });
     }
     return {};
@@ -444,178 +450,182 @@ export async function executarAcaoPresenca(
   return { error: "Ação inválida." };
 }
 
-export async function getTreinosAdmin(): Promise<TreinoComPresenca[]> {
-  await gerarTreinosSemana();
+export async function getAdminTrainings(): Promise<TrainingWithAttendance[]> {
+  await generateWeeklyTrainings();
 
   const supabase = createAdminClient();
-  const { hoje, fimSemana } = getIntervaloSemanaAtual();
+  const { today, weekEnd } = getUpcomingWeeksRange();
 
-  const { data: eventos } = await supabase
-    .from("eventos")
+  const { data: events } = await supabase
+    .from("events")
     .select("*")
-    .eq("tipo", "treino")
-    .gte("data", hoje)
-    .lte("data", fimSemana)
-    .order("data", { ascending: true })
-    .order("hora_inicio", { ascending: true });
+    .eq("type", "training")
+    .gte("date", today)
+    .lte("date", weekEnd)
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true });
 
-  const filtrados = dedupeEventos((eventos ?? []) as Evento[]);
+  const filtrados = dedupeEvents((events ?? []) as Event[]);
   if (!filtrados.length) return [];
 
-  const eventoIds = filtrados.map((e) => e.id);
+  const eventIds = filtrados.map((e) => e.id);
   const { data: ocupadas } = await supabase
-    .from("presencas")
-    .select("evento_id")
-    .in("evento_id", eventoIds)
-    .in("status", STATUS_OCUPA_VAGA);
+    .from("attendances")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .in("status", ATTENDANCE_OCCUPIES_SPOT);
 
   const ocupadasMap = new Map<string, number>();
   for (const row of ocupadas ?? []) {
-    ocupadasMap.set(row.evento_id, (ocupadasMap.get(row.evento_id) ?? 0) + 1);
+    ocupadasMap.set(row.event_id, (ocupadasMap.get(row.event_id) ?? 0) + 1);
   }
 
-  return filtrados.map((evento) => ({
-    ...evento,
-    presenca: null,
-    vagas_ocupadas: ocupadasMap.get(evento.id) ?? 0,
+  return filtrados.map((event) => ({
+    ...event,
+    attendance: null,
+    occupied_spots: ocupadasMap.get(event.id) ?? 0,
   }));
 }
 
-export async function getParticipantesEvento(
-  eventoId: string,
-): Promise<ParticipanteTreino[]> {
+export async function getParticipantesEvent(
+  eventId: string,
+): Promise<TrainingParticipant[]> {
   const supabase = createAdminClient();
 
   const { data } = await supabase
-    .from("presencas")
+    .from("attendances")
     .select(
-      "id, atleta_id, status, posicao_fila, confirmado_em, atletas(nome, modalidade)",
+      "id, player_id, status, waitlist_position, confirmed_at, players(name, nickname, membership_type)",
     )
-    .eq("evento_id", eventoId)
-    .neq("status", "liberado")
+    .eq("event_id", eventId)
+    .neq("status", "released")
     .order("status", { ascending: true })
-    .order("posicao_fila", { ascending: true, nullsFirst: false });
+    .order("waitlist_position", { ascending: true, nullsFirst: false });
 
-  const statusOrder: Record<StatusPresenca, number> = {
-    confirmado: 0,
-    reservado: 1,
-    aguardando_pagamento: 2,
-    fila_espera: 3,
-    liberado: 4,
+  const statusOrder: Record<AttendanceStatus, number> = {
+    confirmed: 0,
+    reserved: 1,
+    pending_payment: 2,
+    waitlist: 3,
+    released: 4,
   };
 
   type Row = {
     id: string;
-    atleta_id: string;
-    status: StatusPresenca;
-    posicao_fila: number | null;
-    confirmado_em: string | null;
-    atletas: { nome: string; modalidade: Modalidade } | { nome: string; modalidade: Modalidade }[] | null;
+    player_id: string;
+    status: AttendanceStatus;
+    waitlist_position: number | null;
+    confirmed_at: string | null;
+    players:
+      | { name: string; nickname: string | null; membership_type: MembershipType }
+      | { name: string; nickname: string | null; membership_type: MembershipType }[]
+      | null;
   };
 
   return ((data ?? []) as Row[])
     .map((row) => {
-      const atleta = Array.isArray(row.atletas) ? row.atletas[0] : row.atletas;
-      if (!atleta) return null;
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      if (!player) return null;
       return {
-        presenca_id: row.id,
-        atleta_id: row.atleta_id,
-        nome: atleta.nome,
-        modalidade: atleta.modalidade,
+        attendance_id: row.id,
+        player_id: row.player_id,
+        name: player.name,
+        nickname: player.nickname,
+        membership_type: player.membership_type,
         status: row.status,
-        posicao_fila: row.posicao_fila,
-        confirmado_em: row.confirmado_em,
+        waitlist_position: row.waitlist_position,
+        confirmed_at: row.confirmed_at,
       };
     })
-    .filter((row): row is ParticipanteTreino => row !== null)
+    .filter((row): row is TrainingParticipant => row !== null)
     .sort((a, b) => {
       const sa = statusOrder[a.status] ?? 9;
       const sb = statusOrder[b.status] ?? 9;
       if (sa !== sb) return sa - sb;
-      if (a.status === "fila_espera" && b.status === "fila_espera") {
-        return (a.posicao_fila ?? 0) - (b.posicao_fila ?? 0);
+      if (a.status === "waitlist" && b.status === "waitlist") {
+        return (a.waitlist_position ?? 0) - (b.waitlist_position ?? 0);
       }
-      return a.nome.localeCompare(b.nome, "pt-BR");
+      return a.name.localeCompare(b.name, "pt-BR");
     });
 }
 
-export type AdminPresencaAction =
+export type AdminAttendanceAction =
   | "confirmar_pagamento"
   | "rejeitar_pagamento"
   | "subir_fila";
 
-export async function executarAcaoAdminPresenca(
-  presencaId: string,
-  action: AdminPresencaAction,
+export async function executarAcaoAdminAttendance(
+  attendanceId: string,
+  action: AdminAttendanceAction,
 ): Promise<{ error?: string }> {
   const supabase = createAdminClient();
 
-  const { data: presenca } = await supabase
-    .from("presencas")
-    .select("*, eventos(capacidade)")
-    .eq("id", presencaId)
+  const { data: attendance } = await supabase
+    .from("attendances")
+    .select("*, events(capacity)")
+    .eq("id", attendanceId)
     .single();
 
-  if (!presenca) return { error: "Presença não encontrada." };
+  if (!attendance) return { error: "Presença não encontrada." };
 
-  const p = presenca as Presenca & { eventos: { capacidade: number } };
-  const capacidade = p.eventos.capacidade;
+  const p = attendance as Attendance & { events: { capacity: number } };
+  const capacity = p.events.capacity;
 
   if (action === "confirmar_pagamento") {
-    if (p.status !== "aguardando_pagamento") {
+    if (p.status !== "pending_payment") {
       return { error: "Atleta não está aguardando pagamento." };
     }
-    const ocupadas = await countVagasOcupadas(p.evento_id);
-    if (ocupadas >= capacidade) {
+    const ocupadas = await countVagasOcupadas(p.event_id);
+    if (ocupadas >= capacity) {
       return { error: "Treino lotado. Rejeite alguém ou libere uma vaga primeiro." };
     }
     await supabase
-      .from("presencas")
+      .from("attendances")
       .update({
-        status: "confirmado",
-        confirmado_em: new Date().toISOString(),
-        posicao_fila: null,
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+        waitlist_position: null,
       })
-      .eq("id", presencaId);
+      .eq("id", attendanceId);
     return {};
   }
 
   if (action === "rejeitar_pagamento") {
-    if (p.status !== "aguardando_pagamento") {
+    if (p.status !== "pending_payment") {
       return { error: "Atleta não está aguardando pagamento." };
     }
     await supabase
-      .from("presencas")
-      .update({ status: "liberado", posicao_fila: null, confirmado_em: null })
-      .eq("id", presencaId);
-    await promoteWaitlist(p.evento_id, capacidade);
+      .from("attendances")
+      .update({ status: "released", waitlist_position: null, confirmed_at: null })
+      .eq("id", attendanceId);
+    await promoteWaitlist(p.event_id, capacity);
     return {};
   }
 
   if (action === "subir_fila") {
-    if (p.status !== "fila_espera") {
+    if (p.status !== "waitlist") {
       return { error: "Atleta não está na fila de espera." };
     }
-    const ocupadas = await countVagasOcupadas(p.evento_id);
-    if (ocupadas >= capacidade) {
+    const ocupadas = await countVagasOcupadas(p.event_id);
+    if (ocupadas >= capacity) {
       return { error: "Não há vagas disponíveis." };
     }
 
-    const { data: atleta } = await supabase
-      .from("atletas")
-      .select("modalidade")
-      .eq("id", p.atleta_id)
+    const { data: player } = await supabase
+      .from("players")
+      .select("membership_type")
+      .eq("id", p.player_id)
       .single();
 
-    const newStatus: StatusPresenca =
-      atleta?.modalidade === "A" ? "aguardando_pagamento" : "reservado";
+    const newStatus: AttendanceStatus =
+      player?.membership_type === "A" ? "pending_payment" : "reserved";
 
     await supabase
-      .from("presencas")
-      .update({ status: newStatus, posicao_fila: null, confirmado_em: null })
-      .eq("id", presencaId);
+      .from("attendances")
+      .update({ status: newStatus, waitlist_position: null, confirmed_at: null })
+      .eq("id", attendanceId);
 
-    await renumberWaitlist(p.evento_id);
+    await renumberWaitlist(p.event_id);
     return {};
   }
 

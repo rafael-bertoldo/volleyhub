@@ -15,10 +15,10 @@ export default async function AdminDashboardLayout({ children }: LayoutProps) {
   const admin = await getAdminUser();
   const supabase = createAdminClient();
 
-  const { data: atletas } = await supabase.from("atletas").select("modalidade, modalidade_status");
+  const { data: players } = await supabase.from("players").select("membership_type, membership_status");
 
-  const pendentes = (atletas ?? []).filter(
-    (a) => a.modalidade !== "A" && a.modalidade_status === "pendente",
+  const pending = (players ?? []).filter(
+    (a) => a.membership_type !== "A" && a.membership_status === "pending",
   ).length;
 
   return (
@@ -27,24 +27,24 @@ export default async function AdminDashboardLayout({ children }: LayoutProps) {
       subtitle={admin?.email ?? "Administração"}
       headerActions={<LogoutButton />}
       navItems={[
-        { href: "/admin/anuncios", label: "Anúncios", icon: <IconFeed className="w-5 h-5" /> },
+        { href: "/admin/announcements", label: "Anúncios", icon: <IconFeed className="w-5 h-5" /> },
         {
-          href: "/admin/treinos",
+          href: "/admin/trainings",
           label: "Treinos",
           icon: <IconCalendar className="w-5 h-5" />,
         },
         {
-          href: "/admin/jogos",
+          href: "/admin/games",
           label: "Jogos",
           icon: <IconTrophy className="w-5 h-5" />,
         },
         {
-          href: "/admin/atletas",
+          href: "/admin/players",
           label: "Atletas",
           icon: <IconUsers className="w-5 h-5" />,
-          badge: pendentes || undefined,
+          badge: pending || undefined,
         },
-        { href: "/admin/convites", label: "Convites", icon: <IconLink className="w-5 h-5" /> },
+        { href: "/admin/invites", label: "Convites", icon: <IconLink className="w-5 h-5" /> },
       ]}
     >
       {children}

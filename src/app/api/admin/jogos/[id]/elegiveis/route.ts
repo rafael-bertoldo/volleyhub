@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
-import { getAtletasElegiveis } from "@/lib/jogos-server";
+import { getPlayersElegiveis } from "@/lib/jogos-server";
 
 export async function GET(
   _request: NextRequest,
@@ -12,7 +12,7 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const elegiveis = await getAtletasElegiveis(id);
+    const elegiveis = await getPlayersElegiveis(id);
     return NextResponse.json(elegiveis);
   } catch {
     return NextResponse.json({ error: "Evento não encontrado." }, { status: 404 });

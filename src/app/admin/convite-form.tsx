@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { conviteCadastroUrl } from "@/lib/convites";
-import type { LinkConvite } from "@/lib/types";
+import type { InviteLink } from "@/lib/types";
 
 interface ConviteFormProps {
   appUrl: string;
@@ -15,7 +15,7 @@ export function ConviteForm({ appUrl }: ConviteFormProps) {
   const [expiraEmDias, setExpiraEmDias] = useState("0");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [criado, setCriado] = useState<LinkConvite | null>(null);
+  const [criado, setCriado] = useState<InviteLink | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -25,22 +25,22 @@ export function ConviteForm({ appUrl }: ConviteFormProps) {
     setCriado(null);
 
     try {
-      const res = await fetch("/api/admin/convites", {
+      const res = await fetch("/api/admin/invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: token.trim() || undefined,
-          expira_em_dias: Number(expiraEmDias),
+          expires_at_dias: Number(expiraEmDias),
         }),
       });
 
-      const data = await res.json();
+      const date = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Erro ao gerar link.");
+        setError(date.error ?? "Erro ao gerar link.");
         return;
       }
 
-      setCriado(data.convite as LinkConvite);
+      setCriado(date.convite as InviteLink);
       setToken("");
       setExpiraEmDias("0");
       router.refresh();

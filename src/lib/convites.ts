@@ -1,11 +1,11 @@
-export type ConviteStatus = "disponivel" | "usado" | "expirado";
+export type ConviteStatus = "disponivel" | "used" | "expirado";
 
 export function getConviteStatus(convite: {
-  usado: boolean;
-  expira_em: string | null;
+  used: boolean;
+  expires_at: string | null;
 }): ConviteStatus {
-  if (convite.usado) return "usado";
-  if (convite.expira_em && new Date(convite.expira_em) < new Date()) {
+  if (convite.used) return "used";
+  if (convite.expires_at && new Date(convite.expires_at) < new Date()) {
     return "expirado";
   }
   return "disponivel";
@@ -13,13 +13,13 @@ export function getConviteStatus(convite: {
 
 export const CONVITE_STATUS_LABEL: Record<ConviteStatus, string> = {
   disponivel: "Disponível",
-  usado: "Usado",
+  used: "Usado",
   expirado: "Expirado",
 };
 
 export const CONVITE_STATUS_BADGE: Record<ConviteStatus, string> = {
   disponivel: "bg-green-100 text-green-800",
-  usado: "bg-gray-100 text-gray-600",
+  used: "bg-gray-100 text-gray-600",
   expirado: "bg-red-100 text-red-700",
 };
 

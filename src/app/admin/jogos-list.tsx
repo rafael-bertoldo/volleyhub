@@ -2,26 +2,27 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useJogosConvocacoesRealtime } from "@/hooks/use-presencas-realtime";
+import { useJogosConvocacoesRealtime } from "@/hooks/use-attendances-realtime";
 import {
   CONVOCACAO_STATUS_BADGE,
   CONVOCACAO_STATUS_LABEL,
   formatJogoTitulo,
 } from "@/lib/jogos";
-import { formatDataTreino, formatHora } from "@/lib/treinos";
-import type { AtletaElegivel, ConvocacaoComAtleta, JogoComConvocacoes } from "@/lib/types";
+import { formatPlayerName } from "@/lib/players";
+import { formatTrainingDate, formatTime } from "@/lib/treinos";
+import type { EligiblePlayer, CallUpWithPlayer, GameWithCallUps } from "@/lib/types";
 
-export function JogosList({ jogos }: { jogos: JogoComConvocacoes[] }) {
+export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
   const router = useRouter();
-  const [convocandoId, setConvocandoId] = useState<string | null>(null);
+  const [callingUpId, setConvocandoId] = useState<string | null>(null);
 
-  const onConvocacaoUpdate = useCallback(() => {
+  const onCallUpUpdate = useCallback(() => {
     router.refresh();
   }, [router]);
 
   useJogosConvocacoesRealtime(
     jogos.map((j) => j.id),
-    onConvocacaoUpdate,
+    onCallUpUpdate,
   );
 
   if (!jogos.length) {
@@ -36,44 +37,44 @@ export function JogosList({ jogos }: { jogos: JogoComConvocacoes[] }) {
             <div>
               <p className="font-semibold text-gray-900">{formatJogoTitulo(jogo)}</p>
               <p className="text-sm text-gray-600 mt-0.5">
-                {formatDataTreino(jogo.data)} · {formatHora(jogo.hora_inicio)} –{" "}
-                {formatHora(jogo.hora_fim)}
-                {jogo.local ? ` · ${jogo.local}` : ""}
+                {formatTrainingDate(jogo.date)} · {formatTime(jogo.start_time)} –{" "}
+                {formatTime(jogo.end_time)}
+                {jogo.location ? ` · ${jogo.location}` : ""}
               </p>
             </div>
             <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
-              {jogo.capacidade} vagas
+              {jogo.capacity} vagas
             </span>
           </div>
 
-          {jogo.observacoes && (
-            <p className="text-sm text-gray-600">{jogo.observacoes}</p>
+          {jogo.notes && (
+            <p className="text-sm text-gray-600">{jogo.notes}</p>
           )}
 
           <div className="flex flex-wrap gap-2 text-xs">
             <StatPill label="Convocados" value={jogo.stats.total} />
-            <StatPill label="Pendentes" value={jogo.stats.pendentes} color="amber" />
-            <StatPill label="Aceitos" value={jogo.stats.aceitos} color="green" />
-            <StatPill label="Recusados" value={jogo.stats.recusados} color="red" />
+            <StatPill label="Pendentes" value={jogo.stats.pending} color="amber" />
+            <StatPill label="Aceitos" value={jogo.stats.accepted} color="green" />
+            <StatPill label="Recusados" value={jogo.stats.declined} color="red" />
           </div>
 
-          {jogo.convocacoes.length > 0 && (
+          {jogo.call_ups.length > 0 && (
             <ul className="text-sm space-y-1 border-t border-gray-50 pt-3">
-              {jogo.convocacoes.map((c) => (
+              {jogo.call_ups.map((c) => (
                 <ConvocadoRow
                   key={c.id}
                   convocacao={c}
-                  onRemoved={onConvocacaoUpdate}
+                  onRemoved={onCallUpUpdate}
                 />
               ))}
             </ul>
           )}
 
           <div className="pt-2 border-t border-gray-50">
-            {convocandoId === jogo.id ? (
+            {callingUpId === jogo.id ? (
               <ConvocarPanel
-                eventoId={jogo.id}
-                capacidade={jogo.capacidade}
+                eventId={jogo.id}
+                capacity={jogo.capacity}
                 onClose={() => setConvocandoId(null)}
               />
             ) : (
@@ -96,7 +97,7 @@ function ConvocadoRow({
   convocacao,
   onRemoved,
 }: {
-  convocacao: ConvocacaoComAtleta;
+  convocacao: CallUpWithPlayer;
   onRemoved: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -105,7 +106,7 @@ function ConvocadoRow({
   async function handleRemove() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/jogos/convocacoes/${convocacao.id}`, {
+      const res = await fetch(`/api/admin/games/call-ups/${convocacao.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -120,8 +121,8 @@ function ConvocadoRow({
   return (
     <li className="flex items-center justify-between gap-2 py-1">
       <span className="min-w-0">
-        {convocacao.atleta.nome}{" "}
-        <span className="text-xs text-gray-400">({convocacao.atleta.modalidade})</span>
+        {formatPlayerName(convocacao.player)}{" "}
+        <span className="text-xs text-gray-400">({convocacao.player.membership_type})</span>
       </span>
       <div className="flex items-center gap-2 shrink-0">
         <span
@@ -164,37 +165,48 @@ function ConvocadoRow({
 }
 
 function ConvocarPanel({
-  eventoId,
-  capacidade,
+  eventId,
+  capacity,
   onClose,
 }: {
-  eventoId: string;
-  capacidade: number;
+  eventId: string;
+  capacity: number;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mensalistas, setMensalistas] = useState<AtletaElegivel[]>([]);
-  const [avulsos, setAvulsos] = useState<AtletaElegivel[]>([]);
+  const [members, setMensalistas] = useState<EligiblePlayer[]>([]);
+  const [dropIns, setAvulsos] = useState<EligiblePlayer[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/admin/jogos/${eventoId}/elegiveis`)
-      .then((r) => r.json())
-      .then((data) => {
-        setMensalistas(data.mensalistas ?? []);
-        setAvulsos(data.avulsos ?? []);
-      })
-      .finally(() => setLoading(false));
-  }, [eventoId]);
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/admin/games/${eventId}/eligible`)
+        .then((r) => r.json())
+        .then((date) => {
+          if (cancelled) return;
+          setMensalistas(date.members ?? []);
+          setAvulsos(date.dropIns ?? []);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 0);
 
-  const disponiveisMensalistas = mensalistas.filter((a) => !a.ja_convocado);
-  const disponiveisAvulsos = avulsos.filter((a) => !a.ja_convocado);
-  const vagasParaAvulsos = Math.max(0, capacidade - mensalistas.length);
-  const podeConvocarAvulsos = mensalistas.length < capacidade;
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [eventId]);
+
+  const disponiveisMembers = members.filter((a) => !a.already_called_up);
+  const disponiveisAvulsos = dropIns.filter((a) => !a.already_called_up);
+  const vagasParaAvulsos = Math.max(0, capacity - members.length);
+  const podeConvocarAvulsos = members.length < capacity;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -202,12 +214,12 @@ function ConvocarPanel({
       if (next.has(id)) {
         next.delete(id);
       } else {
-        if (next.size >= capacidade) return prev;
-        const isAvulso = avulsos.some((a) => a.id === id);
+        if (next.size >= capacity) return prev;
+        const isAvulso = dropIns.some((a) => a.id === id);
         if (isAvulso) {
           if (!podeConvocarAvulsos) return prev;
-          const avulsosNoSet = [...next].filter((x) => avulsos.some((a) => a.id === x)).length;
-          if (avulsosNoSet >= vagasParaAvulsos) return prev;
+          const dropInsNoSet = [...next].filter((x) => dropIns.some((a) => a.id === x)).length;
+          if (dropInsNoSet >= vagasParaAvulsos) return prev;
         }
         next.add(id);
       }
@@ -218,8 +230,8 @@ function ConvocarPanel({
   function selectAllMensalistas() {
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const m of disponiveisMensalistas) {
-        if (next.size >= capacidade) break;
+      for (const m of disponiveisMembers) {
+        if (next.size >= capacity) break;
         next.add(m.id);
       }
       return next;
@@ -230,14 +242,14 @@ function ConvocarPanel({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/jogos/${eventoId}/convocar`, {
+      const res = await fetch(`/api/admin/games/${eventId}/call-up`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ atleta_ids: [...selected] }),
+        body: JSON.stringify({ player_ids: [...selected] }),
       });
-      const data = await res.json();
+      const date = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Erro ao convocar.");
+        setError(date.error ?? "Erro ao convocar.");
         return;
       }
       router.refresh();
@@ -265,7 +277,7 @@ function ConvocarPanel({
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-700">
-        Selecionados: <strong>{selected.size}</strong>/{capacidade}
+        Selecionados: <strong>{selected.size}</strong>/{capacity}
         {podeConvocarAvulsos && (
           <span className="text-gray-500"> · até {vagasParaAvulsos} avulso(s)</span>
         )}
@@ -274,7 +286,7 @@ function ConvocarPanel({
       <section>
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-sm font-medium text-gray-900">
-            Mensalistas ({disponiveisMensalistas.length} disponíveis)
+            Mensalistas ({disponiveisMembers.length} disponíveis)
           </h4>
           <button
             type="button"
@@ -284,8 +296,8 @@ function ConvocarPanel({
             Selecionar todos
           </button>
         </div>
-        <AtletaCheckList
-          atletas={disponiveisMensalistas}
+        <PlayerCheckList
+          players={disponiveisMembers}
           selected={selected}
           onToggle={toggle}
         />
@@ -300,8 +312,8 @@ function ConvocarPanel({
             </span>
           )}
         </h4>
-        <AtletaCheckList
-          atletas={disponiveisAvulsos}
+        <PlayerCheckList
+          players={disponiveisAvulsos}
           selected={selected}
           onToggle={toggle}
           disabled={!podeConvocarAvulsos}
@@ -332,24 +344,24 @@ function ConvocarPanel({
   );
 }
 
-function AtletaCheckList({
-  atletas,
+function PlayerCheckList({
+  players,
   selected,
   onToggle,
   disabled,
 }: {
-  atletas: AtletaElegivel[];
+  players: EligiblePlayer[];
   selected: Set<string>;
   onToggle: (id: string) => void;
   disabled?: boolean;
 }) {
-  if (!atletas.length) {
+  if (!players.length) {
     return <p className="text-xs text-gray-500">Nenhum atleta disponível.</p>;
   }
 
   return (
     <ul className="max-h-48 overflow-y-auto space-y-1 border border-gray-100 rounded-lg p-2">
-      {atletas.map((a) => (
+      {players.map((a) => (
         <li key={a.id}>
           <label
             className={`flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50 ${
@@ -363,8 +375,8 @@ function AtletaCheckList({
               onChange={() => onToggle(a.id)}
               className="rounded border-gray-300 text-violet-600"
             />
-            <span>{a.nome}</span>
-            <span className="text-xs text-gray-400 ml-auto">{a.modalidade}</span>
+            <span>{formatPlayerName(a)}</span>
+            <span className="text-xs text-gray-400 ml-auto">{a.membership_type}</span>
           </label>
         </li>
       ))}

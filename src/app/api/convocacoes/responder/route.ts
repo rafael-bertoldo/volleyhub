@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAtletaByToken } from "@/lib/atleta-server";
-import { responderConvocacao } from "@/lib/jogos-server";
+import { getCurrentPlayer } from "@/lib/player-server";
+import { responderCallUp } from "@/lib/jogos-server";
 
 export async function POST(request: NextRequest) {
-  const { access_token, evento_id, resposta } = await request.json();
+  const { event_id, resposta } = await request.json();
 
-  if (!access_token || !evento_id || !resposta) {
+  if (!event_id || !resposta) {
     return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }
 
-  if (!["aceito", "recusado"].includes(resposta)) {
+  if (!["accepted", "declined"].includes(resposta)) {
     return NextResponse.json({ error: "Resposta inválida." }, { status: 400 });
   }
 
-  const atleta = await getAtletaByToken(access_token);
-  if (!atleta) {
+  const player = await getCurrentPlayer();
+  if (!player) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  const result = await responderConvocacao(
-    atleta,
-    evento_id,
-    resposta as "aceito" | "recusado",
+  const result = await responderCallUp(
+    player,
+    event_id,
+    resposta as "accepted" | "declined",
   );
 
   if (result.error) {

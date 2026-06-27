@@ -1,81 +1,73 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { REALTIME_EVENTS } from "@/lib/realtime/channels";
-import { STATUS_PRESENCA_LABEL } from "@/lib/treinos";
-import type { ParticipanteTreino } from "@/lib/treinos-server";
+import { formatPlayerName } from "@/lib/players";
+import { ATTENDANCE_STATUS_LABEL } from "@/lib/treinos";
+import type { TrainingParticipant } from "@/lib/treinos-server";
 
 interface ParticipantesListaProps {
-  eventoId: string;
-  accessToken?: string;
-  atletaIdAtual?: string;
-  initialParticipantes?: ParticipanteTreino[];
-  modo?: "atleta" | "admin";
-  presencaVersion?: number;
+  eventId: string;
+  playerIdAtual?: string;
+  initialParticipantes?: TrainingParticipant[];
+  modo?: "player" | "admin";
+  attendanceVersion?: number;
   onAdminAction?: (
-    presencaId: string,
+    attendanceId: string,
     action: "confirmar_pagamento" | "rejeitar_pagamento" | "subir_fila",
   ) => Promise<void>;
 }
 
 export function ParticipantesLista({
-  eventoId,
-  accessToken,
-  atletaIdAtual,
+  eventId,
+  playerIdAtual,
   initialParticipantes,
-  modo = "atleta",
-  presencaVersion = 0,
+  modo = "player",
+  attendanceVersion = 0,
   onAdminAction,
 }: ParticipantesListaProps) {
-  const [participantes, setParticipantes] = useState<ParticipanteTreino[]>(
-    initialParticipantes ?? [],
-  );
+  const [participantesRemotos, setParticipantesRemotos] = useState<TrainingParticipant[]>([]);
   const [loading, setLoading] = useState(!initialParticipantes);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const participantes = initialParticipantes ?? participantesRemotos;
 
   const carregar = useCallback(async () => {
-    if (modo !== "atleta" || !accessToken) return;
+    if (modo !== "player") return;
 
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/treinos/${eventoId}/participantes?access_token=${encodeURIComponent(accessToken)}`,
-      );
+      const res = await fetch(`/api/trainings/${eventId}/participants`);
       if (res.ok) {
-        const data = await res.json();
-        setParticipantes(data.participantes ?? []);
+        const date = await res.json();
+        setParticipantesRemotos(date.participantes ?? []);
       }
     } finally {
       setLoading(false);
     }
-  }, [eventoId, accessToken, modo]);
+  }, [eventId, modo]);
 
   useEffect(() => {
-    if (initialParticipantes) {
-      setParticipantes(initialParticipantes);
-    }
-  }, [initialParticipantes]);
+    const timeout = window.setTimeout(() => {
+      void carregar();
+    }, 0);
 
-  useEffect(() => {
-    carregar();
-  }, [carregar, presencaVersion]);
+    return () => window.clearTimeout(timeout);
+  }, [carregar, attendanceVersion]);
 
-  const confirmados = participantes.filter((p) => p.status === "confirmado");
-  const reservados = participantes.filter((p) => p.status === "reservado");
+  const confirmados = participantes.filter((p) => p.status === "confirmed");
+  const reservados = participantes.filter((p) => p.status === "reserved");
   const aguardando = participantes.filter(
-    (p) => p.status === "aguardando_pagamento",
+    (p) => p.status === "pending_payment",
   );
-  const fila = participantes.filter((p) => p.status === "fila_espera");
+  const fila = participantes.filter((p) => p.status === "waitlist");
 
   async function handleAdminAction(
-    presencaId: string,
+    attendanceId: string,
     action: "confirmar_pagamento" | "rejeitar_pagamento" | "subir_fila",
   ) {
     if (!onAdminAction) return;
-    setActionLoading(`${presencaId}:${action}`);
+    setActionLoading(`${attendanceId}:${action}`);
     try {
-      await onAdminAction(presencaId, action);
+      await onAdminAction(attendanceId, action);
     } finally {
       setActionLoading(null);
     }
@@ -100,8 +92,8 @@ export function ParticipantesLista({
       {confirmados.length > 0 ? (
         <ListaNomes
           items={confirmados}
-          atletaIdAtual={atletaIdAtual}
-          variant="confirmado"
+          playerIdAtual={playerIdAtual}
+          variant="confirmed"
         />
       ) : (
         <p className="text-xs text-gray-500">Nenhuma presença confirmada ainda.</p>
@@ -114,8 +106,8 @@ export function ParticipantesLista({
           </p>
           <ListaNomes
             items={reservados}
-            atletaIdAtual={atletaIdAtual}
-            variant="reservado"
+            playerIdAtual={playerIdAtual}
+            variant="reserved"
           />
         </section>
       )}
@@ -128,28 +120,28 @@ export function ParticipantesLista({
           <ul className="space-y-1.5">
             {aguardando.map((p) => (
               <li
-                key={p.presenca_id}
+                key={p.attendance_id}
                 className="flex flex-wrap items-center justify-between gap-2 text-sm"
               >
                 <span>
-                  {p.nome}{" "}
-                  <span className="text-xs text-gray-500">({p.modalidade})</span>
+                  {formatPlayerName(p)}{" "}
+                  <span className="text-xs text-gray-500">({p.membership_type})</span>
                 </span>
                 <div className="flex gap-1.5">
                   <AdminBtn
                     label="Confirmar"
                     variant="primary"
-                    loading={actionLoading === `${p.presenca_id}:confirmar_pagamento`}
+                    loading={actionLoading === `${p.attendance_id}:confirmar_pagamento`}
                     onClick={() =>
-                      handleAdminAction(p.presenca_id, "confirmar_pagamento")
+                      handleAdminAction(p.attendance_id, "confirmar_pagamento")
                     }
                   />
                   <AdminBtn
                     label="Rejeitar"
                     variant="secondary"
-                    loading={actionLoading === `${p.presenca_id}:rejeitar_pagamento`}
+                    loading={actionLoading === `${p.attendance_id}:rejeitar_pagamento`}
                     onClick={() =>
-                      handleAdminAction(p.presenca_id, "rejeitar_pagamento")
+                      handleAdminAction(p.attendance_id, "rejeitar_pagamento")
                     }
                   />
                 </div>
@@ -159,14 +151,14 @@ export function ParticipantesLista({
         </section>
       )}
 
-      {modo === "atleta" && aguardando.length > 0 && (
+      {modo === "player" && aguardando.length > 0 && (
         <section>
           <p className="text-xs font-medium text-orange-700 mb-1.5">
             Aguardando confirmação ({aguardando.length})
           </p>
           <ListaNomes
             items={aguardando}
-            atletaIdAtual={atletaIdAtual}
+            playerIdAtual={playerIdAtual}
             variant="aguardando"
           />
         </section>
@@ -181,18 +173,18 @@ export function ParticipantesLista({
             <ul className="space-y-1.5">
               {fila.map((p) => (
                 <li
-                  key={p.presenca_id}
+                  key={p.attendance_id}
                   className="flex flex-wrap items-center justify-between gap-2 text-sm"
                 >
                   <span>
-                    {p.posicao_fila}º — {p.nome}{" "}
-                    <span className="text-xs text-gray-500">({p.modalidade})</span>
+                    {p.waitlist_position}º — {formatPlayerName(p)}{" "}
+                    <span className="text-xs text-gray-500">({p.membership_type})</span>
                   </span>
                   <AdminBtn
                     label="Subir"
                     variant="primary"
-                    loading={actionLoading === `${p.presenca_id}:subir_fila`}
-                    onClick={() => handleAdminAction(p.presenca_id, "subir_fila")}
+                    loading={actionLoading === `${p.attendance_id}:subir_fila`}
+                    onClick={() => handleAdminAction(p.attendance_id, "subir_fila")}
                   />
                 </li>
               ))}
@@ -200,7 +192,7 @@ export function ParticipantesLista({
           ) : (
             <ListaNomes
               items={fila}
-              atletaIdAtual={atletaIdAtual}
+              playerIdAtual={playerIdAtual}
               variant="fila"
             />
           )}
@@ -212,17 +204,17 @@ export function ParticipantesLista({
 
 function ListaNomes({
   items,
-  atletaIdAtual,
+  playerIdAtual,
   variant,
 }: {
-  items: ParticipanteTreino[];
-  atletaIdAtual?: string;
-  variant: "confirmado" | "reservado" | "aguardando" | "fila";
+  items: TrainingParticipant[];
+  playerIdAtual?: string;
+  variant: "confirmed" | "reserved" | "aguardando" | "fila";
 }) {
   const dot =
-    variant === "confirmado"
+    variant === "confirmed"
       ? "bg-green-500"
-      : variant === "reservado"
+      : variant === "reserved"
         ? "bg-blue-300"
         : variant === "fila"
           ? "bg-amber-400"
@@ -232,25 +224,25 @@ function ListaNomes({
     <ul className="space-y-1">
       {items.map((p) => (
         <li
-          key={p.presenca_id}
+          key={p.attendance_id}
           className={`flex items-center gap-2 text-sm ${
-            p.atleta_id === atletaIdAtual ? "font-semibold text-violet-800" : "text-gray-800"
+            p.player_id === playerIdAtual ? "font-semibold text-violet-800" : "text-gray-800"
           }`}
         >
           <span className={`size-2 rounded-full shrink-0 ${dot}`} />
           <span>
-            {p.nome}
-            {p.atleta_id === atletaIdAtual && (
+            {formatPlayerName(p)}
+            {p.player_id === playerIdAtual && (
               <span className="text-xs font-normal text-violet-600"> (você)</span>
             )}
           </span>
-          <span className="text-xs text-gray-400 ml-auto">{p.modalidade}</span>
-          {variant === "fila" && p.posicao_fila && (
-            <span className="text-xs text-amber-600">{p.posicao_fila}º</span>
+          <span className="text-xs text-gray-400 ml-auto">{p.membership_type}</span>
+          {variant === "fila" && p.waitlist_position && (
+            <span className="text-xs text-amber-600">{p.waitlist_position}º</span>
           )}
-          {variant === "reservado" && (
+          {variant === "reserved" && (
             <span className="text-xs text-gray-400">
-              {STATUS_PRESENCA_LABEL.reservado}
+              {ATTENDANCE_STATUS_LABEL.reserved}
             </span>
           )}
         </li>

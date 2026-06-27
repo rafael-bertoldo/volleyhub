@@ -5,21 +5,21 @@ import { createClient } from "@/lib/supabase/client";
 import {
   FEED_GLOBAL_CHANNEL,
   REALTIME_EVENTS,
-  atletaChannel,
+  playerChannel,
 } from "@/lib/realtime/channels";
-import { feedItemMatchesAnuncio } from "@/lib/feed";
-import type { Anuncio, FeedItem, FeedItemComConvocacao } from "@/lib/types";
+import { feedItemMatchesAnnouncement } from "@/lib/feed";
+import type { Announcement, FeedItem, FeedItemWithCallUp } from "@/lib/types";
 
-function enrichConvocacaoItem(item: FeedItem): FeedItemComConvocacao {
-  if (item.tipo === "convocacao" && item.evento_id) {
-    return { ...item, convocacao_status: "pendente" };
+function enrichCallUpItem(item: FeedItem): FeedItemWithCallUp {
+  if (item.type === "call_up" && item.event_id) {
+    return { ...item, call_up_status: "pending" };
   }
   return item;
 }
 
 function sortFeed(items: FeedItem[]) {
   return [...items].sort(
-    (a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime(),
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
 
@@ -29,23 +29,27 @@ function mergeFeedItem(items: FeedItem[], item: FeedItem): FeedItem[] {
 }
 
 export function useFeedRealtime(
-  initialActive: FeedItemComConvocacao[],
-  initialArchived: FeedItemComConvocacao[],
-  atletaId: string,
+  initialActive: FeedItemWithCallUp[],
+  initialArchived: FeedItemWithCallUp[],
+  playerId: string,
 ) {
   const [active, setActive] = useState(initialActive);
   const [archived, setArchived] = useState(initialArchived);
 
   useEffect(() => {
-    setActive(initialActive);
-    setArchived(initialArchived);
+    const timeout = window.setTimeout(() => {
+      setActive(initialActive);
+      setArchived(initialArchived);
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [initialActive, initialArchived]);
 
   useEffect(() => {
     const supabase = createClient();
 
     function handleNewItem(payload: FeedItem) {
-      setActive((prev) => mergeFeedItem(prev, enrichConvocacaoItem(payload)));
+      setActive((prev) => mergeFeedItem(prev, enrichCallUpItem(payload)));
     }
 
     function handleDeleted(payload: { id: string }) {
@@ -53,10 +57,10 @@ export function useFeedRealtime(
       setArchived((prev) => prev.filter((i) => i.id !== payload.id));
     }
 
-    function handleAnuncioDeleted(
-      payload: Pick<Anuncio, "id" | "titulo" | "corpo" | "imagem_url">,
+    function handleAnnouncementDeleted(
+      payload: Pick<Announcement, "id" | "title" | "body" | "image_url">,
     ) {
-      const matches = (item: FeedItem) => feedItemMatchesAnuncio(item, payload);
+      const matches = (item: FeedItem) => feedItemMatchesAnnouncement(item, payload);
       setActive((prev) => prev.filter((i) => !matches(i)));
       setArchived((prev) => prev.filter((i) => !matches(i)));
     }
@@ -69,15 +73,15 @@ export function useFeedRealtime(
       .on("broadcast", { event: REALTIME_EVENTS.FEED_DELETED }, ({ payload }) => {
         handleDeleted(payload as { id: string });
       })
-      .on("broadcast", { event: REALTIME_EVENTS.ANUNCIO_DELETED }, ({ payload }) => {
-        handleAnuncioDeleted(
-          payload as Pick<Anuncio, "id" | "titulo" | "corpo" | "imagem_url">,
+      .on("broadcast", { event: REALTIME_EVENTS.ANNOUNCEMENT_DELETED }, ({ payload }) => {
+        handleAnnouncementDeleted(
+          payload as Pick<Announcement, "id" | "title" | "body" | "image_url">,
         );
       })
       .subscribe();
 
     const privateChannel = supabase
-      .channel(atletaChannel(atletaId))
+      .channel(playerChannel(playerId))
       .on("broadcast", { event: REALTIME_EVENTS.FEED_ITEM }, ({ payload }) => {
         handleNewItem(payload as FeedItem);
       })
@@ -90,7 +94,7 @@ export function useFeedRealtime(
       supabase.removeChannel(globalChannel);
       supabase.removeChannel(privateChannel);
     };
-  }, [atletaId]);
+  }, [playerId]);
 
   function moveToArchived(item: FeedItem) {
     setActive((prev) => prev.filter((i) => i.id !== item.id));

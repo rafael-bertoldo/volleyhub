@@ -1,47 +1,47 @@
-import { formatDataTreino, formatHora } from "./treinos";
-import type { Evento, StatusConvocacao, TipoEvento } from "./types";
+import { formatTrainingDate, formatTime } from "./treinos";
+import type { Event, CallUpStatus, EventType } from "./types";
 
-export const TIPO_JOGO_LABEL: Record<"jogo" | "amistoso", string> = {
-  jogo: "Competição",
-  amistoso: "Amistoso",
+export const TIPO_JOGO_LABEL: Record<"game" | "friendly", string> = {
+  game: "Competição",
+  friendly: "Amistoso",
 };
 
-export const CONVOCACAO_STATUS_LABEL: Record<StatusConvocacao, string> = {
-  pendente: "Aguardando resposta",
-  aceito: "Confirmado",
-  recusado: "Recusado",
+export const CONVOCACAO_STATUS_LABEL: Record<CallUpStatus, string> = {
+  pending: "Aguardando resposta",
+  accepted: "Confirmado",
+  declined: "Recusado",
 };
 
-export const CONVOCACAO_STATUS_BADGE: Record<StatusConvocacao, string> = {
-  pendente: "bg-amber-100 text-amber-800",
-  aceito: "bg-green-100 text-green-800",
-  recusado: "bg-red-100 text-red-700",
+export const CONVOCACAO_STATUS_BADGE: Record<CallUpStatus, string> = {
+  pending: "bg-amber-100 text-amber-800",
+  accepted: "bg-green-100 text-green-800",
+  declined: "bg-red-100 text-red-700",
 };
 
-export function isJogoOuAmistoso(tipo: TipoEvento) {
-  return tipo === "jogo" || tipo === "amistoso";
+export function isJogoOuAmistoso(type: EventType) {
+  return type === "game" || type === "friendly";
 }
 
-export function formatJogoTitulo(evento: Pick<Evento, "tipo" | "adversario">) {
-  const tipo = TIPO_JOGO_LABEL[evento.tipo as "jogo" | "amistoso"] ?? evento.tipo;
-  if (evento.adversario?.trim()) {
-    return `${tipo} vs ${evento.adversario.trim()}`;
+export function formatJogoTitulo(event: Pick<Event, "type" | "opponent">) {
+  const type = TIPO_JOGO_LABEL[event.type as "game" | "friendly"] ?? event.type;
+  if (event.opponent?.trim()) {
+    return `${type} vs ${event.opponent.trim()}`;
   }
-  return tipo;
+  return type;
 }
 
-export function formatJogoResumo(evento: Evento) {
+export function formatJogoResumo(event: Event) {
   const linhas = [
-    formatDataTreino(evento.data),
-    `${formatHora(evento.hora_inicio)} – ${formatHora(evento.hora_fim)}`,
+    formatTrainingDate(event.date),
+    `${formatTime(event.start_time)} – ${formatTime(event.end_time)}`,
   ];
-  if (evento.local?.trim()) linhas.push(evento.local.trim());
-  if (evento.adversario?.trim()) linhas.push(`Adversário: ${evento.adversario.trim()}`);
+  if (event.location?.trim()) linhas.push(event.location.trim());
+  if (event.opponent?.trim()) linhas.push(`Adversário: ${event.opponent.trim()}`);
   return linhas.join("\n");
 }
 
-export function buildConvocacaoFeed(evento: Evento) {
-  const titulo = `Convocação: ${formatJogoTitulo(evento)}`;
-  const corpo = `${formatJogoResumo(evento)}\n\nConfirme se você pode jogar.`;
-  return { titulo, corpo };
+export function buildCallUpFeed(event: Event) {
+  const title = `Convocação: ${formatJogoTitulo(event)}`;
+  const body = `${formatJogoResumo(event)}\n\nConfirme se você pode jogar.`;
+  return { title, body };
 }

@@ -2,10 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   FEED_GLOBAL_CHANNEL,
   REALTIME_EVENTS,
-  atletaChannel,
-  jogoChannel,
+  playerChannel,
+  gameChannel,
 } from "./channels";
-import type { Anuncio, FeedItem } from "@/lib/types";
+import type { Announcement, FeedItem } from "@/lib/types";
 
 async function sendBroadcast(
   channelName: string,
@@ -64,23 +64,23 @@ export async function broadcastFeedDeleted(feedId: string) {
   }
 }
 
-export async function broadcastFeedDeletedToAtleta(atletaId: string, feedId: string) {
+export async function broadcastFeedDeletedToPlayer(playerId: string, feedId: string) {
   try {
-    await sendBroadcast(atletaChannel(atletaId), REALTIME_EVENTS.FEED_DELETED, {
+    await sendBroadcast(playerChannel(playerId), REALTIME_EVENTS.FEED_DELETED, {
       id: feedId,
     });
   } catch (error) {
-    console.error("Erro ao enviar broadcast de exclusão do feed do atleta:", error);
+    console.error("Erro ao enviar broadcast de exclusão do feed do player:", error);
   }
 }
 
-export async function broadcastAnuncioDeleted(
-  anuncio: Pick<Anuncio, "id" | "titulo" | "corpo" | "imagem_url">,
+export async function broadcastAnnouncementDeleted(
+  anuncio: Pick<Announcement, "id" | "title" | "body" | "image_url">,
 ) {
   try {
     await sendBroadcast(
       FEED_GLOBAL_CHANNEL,
-      REALTIME_EVENTS.ANUNCIO_DELETED,
+      REALTIME_EVENTS.ANNOUNCEMENT_DELETED,
       anuncio,
     );
   } catch (error) {
@@ -88,19 +88,19 @@ export async function broadcastAnuncioDeleted(
   }
 }
 
-export async function broadcastFeedToAtleta(atletaId: string, item: FeedItem) {
+export async function broadcastFeedToPlayer(playerId: string, item: FeedItem) {
   try {
-    await sendBroadcast(atletaChannel(atletaId), REALTIME_EVENTS.FEED_ITEM, item);
+    await sendBroadcast(playerChannel(playerId), REALTIME_EVENTS.FEED_ITEM, item);
   } catch (error) {
     console.error("Erro ao enviar broadcast de feed:", error);
   }
 }
 
-export async function broadcastPresencaUpdate(eventoId: string, payload: unknown) {
+export async function broadcastAttendanceUpdate(eventId: string, payload: unknown) {
   try {
     await sendBroadcast(
-      `treino:${eventoId}`,
-      REALTIME_EVENTS.PRESENCA_UPDATE,
+      `treino:${eventId}`,
+      REALTIME_EVENTS.ATTENDANCE_UPDATE,
       payload,
     );
   } catch (error) {
@@ -108,11 +108,11 @@ export async function broadcastPresencaUpdate(eventoId: string, payload: unknown
   }
 }
 
-export async function broadcastConvocacaoUpdate(atletaId: string, payload: unknown) {
+export async function broadcastCallUpUpdate(playerId: string, payload: unknown) {
   try {
     await sendBroadcast(
-      atletaChannel(atletaId),
-      REALTIME_EVENTS.CONVOCACAO_UPDATE,
+      playerChannel(playerId),
+      REALTIME_EVENTS.CALL_UP_UPDATE,
       payload,
     );
   } catch (error) {
@@ -120,11 +120,11 @@ export async function broadcastConvocacaoUpdate(atletaId: string, payload: unkno
   }
 }
 
-export async function broadcastJogoConvocacaoUpdate(eventoId: string, payload: unknown) {
+export async function broadcastJogoCallUpUpdate(eventId: string, payload: unknown) {
   try {
     await sendBroadcast(
-      jogoChannel(eventoId),
-      REALTIME_EVENTS.CONVOCACAO_UPDATE,
+      gameChannel(eventId),
+      REALTIME_EVENTS.CALL_UP_UPDATE,
       payload,
     );
   } catch (error) {

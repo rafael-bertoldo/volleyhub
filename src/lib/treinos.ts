@@ -1,7 +1,7 @@
-import { DIAS_POR_MODALIDADE } from "./constants";
-import type { Modalidade, StatusPresenca } from "./types";
+import { WEEKDAYS_BY_MEMBERSHIP } from "./constants";
+import type { MembershipType, AttendanceStatus } from "./types";
 
-export const DIAS_SEMANA_LABELS = [
+export const WEEKDAY_LABELS = [
   "Domingo",
   "Segunda",
   "Terça",
@@ -11,82 +11,82 @@ export const DIAS_SEMANA_LABELS = [
   "Sábado",
 ] as const;
 
-export const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
+export const SHORT_WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
 
-export const STATUS_OCUPA_VAGA: StatusPresenca[] = [
-  "reservado",
-  "confirmado",
-  "aguardando_pagamento",
+export const ATTENDANCE_OCCUPIES_SPOT: AttendanceStatus[] = [
+  "reserved",
+  "confirmed",
+  "pending_payment",
 ];
 
-export const STATUS_PRESENCA_LABEL: Record<StatusPresenca, string> = {
-  reservado: "Vaga reservada",
-  confirmado: "Presença confirmada",
-  liberado: "Vaga liberada",
-  fila_espera: "Na fila de espera",
-  aguardando_pagamento: "Aguardando pagamento",
+export const ATTENDANCE_STATUS_LABEL: Record<AttendanceStatus, string> = {
+  reserved: "Vaga reservada",
+  confirmed: "Presença confirmada",
+  released: "Vaga liberada",
+  waitlist: "Na fila de espera",
+  pending_payment: "Aguardando pagamento",
 };
 
-export const STATUS_PRESENCA_BADGE: Record<StatusPresenca, string> = {
-  reservado: "bg-blue-100 text-blue-800",
-  confirmado: "bg-green-100 text-green-800",
-  liberado: "bg-gray-100 text-gray-600",
-  fila_espera: "bg-amber-100 text-amber-800",
-  aguardando_pagamento: "bg-orange-100 text-orange-800",
+export const ATTENDANCE_STATUS_BADGE: Record<AttendanceStatus, string> = {
+  reserved: "bg-blue-100 text-blue-800",
+  confirmed: "bg-green-100 text-green-800",
+  released: "bg-gray-100 text-gray-600",
+  waitlist: "bg-amber-100 text-amber-800",
+  pending_payment: "bg-orange-100 text-orange-800",
 };
 
-export function formatHora(time: string) {
+export function formatTime(time: string) {
   return time.slice(0, 5);
 }
 
-export function normalizeHora(time: string) {
+export function normalizeTime(time: string) {
   const [h, m, s = "00"] = time.split(":");
   return `${h.padStart(2, "0")}:${m.padStart(2, "0")}:${s.padStart(2, "0").slice(0, 2)}`;
 }
 
-export function eventoChave(data: string, horaInicio: string) {
-  return `${data}|${normalizeHora(horaInicio)}`;
+export function eventKey(date: string, startTime: string) {
+  return `${date}|${normalizeTime(startTime)}`;
 }
 
-export function formatDataTreino(data: string) {
-  const [y, m, d] = data.split("-").map(Number);
+export function formatTrainingDate(dateString: string) {
+  const [y, m, d] = dateString.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  const dia = DIAS_SEMANA_LABELS[date.getDay()];
-  const dataFmt = date.toLocaleDateString("pt-BR", {
+  const weekday = WEEKDAY_LABELS[date.getDay()];
+  const formattedDate = date.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
   });
-  return `${dia}, ${dataFmt}`;
+  return `${weekday}, ${formattedDate}`;
 }
 
-export function diaSemanaFromData(data: string) {
-  const [y, m, d] = data.split("-").map(Number);
+export function weekdayFromDate(dateString: string) {
+  const [y, m, d] = dateString.split("-").map(Number);
   return new Date(y, m - 1, d).getDay();
 }
 
-export function modalidadesParaDia(diaSemana: number): Modalidade[] {
-  return (["ON", "MF", "MR", "MP"] as Modalidade[]).filter((m) =>
-    DIAS_POR_MODALIDADE[m].includes(diaSemana),
+export function membershipTypesForWeekday(weekday: number): MembershipType[] {
+  return (["ON", "MF", "MR", "MP"] as MembershipType[]).filter((m) =>
+    WEEKDAYS_BY_MEMBERSHIP[m].includes(weekday),
   );
 }
 
-export function atletaPodeParticipar(
-  modalidade: Modalidade,
-  modalidadeStatus: string,
-  diaSemana: number,
+export function canPlayerAttend(
+  membershipType: MembershipType,
+  membershipStatus: string,
+  weekday: number,
 ): boolean {
-  if (modalidade === "A") return true;
-  if (modalidadeStatus !== "aprovado") return false;
-  return DIAS_POR_MODALIDADE[modalidade].includes(diaSemana);
+  if (membershipType === "A") return true;
+  if (membershipStatus !== "approved") return false;
+  return WEEKDAYS_BY_MEMBERSHIP[membershipType].includes(weekday);
 }
 
-export function diasVisiveisParaAtleta(modalidade: Modalidade): number[] {
-  if (modalidade === "A") return [2, 4, 5];
-  return DIAS_POR_MODALIDADE[modalidade];
+export function visibleWeekdaysForPlayer(membershipType: MembershipType): number[] {
+  if (membershipType === "A") return [2, 4, 5];
+  return WEEKDAYS_BY_MEMBERSHIP[membershipType];
 }
 
-export function formatIntervaloConfirmacao(abre: string | null, fecha: string | null) {
-  if (!abre || !fecha) return null;
+export function formatConfirmationWindow(opensAt: string | null, closesAt: string | null) {
+  if (!opensAt || !closesAt) return null;
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("pt-BR", {
       day: "2-digit",
@@ -94,27 +94,27 @@ export function formatIntervaloConfirmacao(abre: string | null, fecha: string | 
       hour: "2-digit",
       minute: "2-digit",
     });
-  return `${fmt(abre)} até ${fmt(fecha)}`;
+  return `${fmt(opensAt)} até ${fmt(closesAt)}`;
 }
 
-export function confirmacaoAberta(
-  abre: string | null,
-  fecha: string | null,
-  agora = new Date(),
+export function isConfirmationOpen(
+  opensAt: string | null,
+  closesAt: string | null,
+  now = new Date(),
 ) {
-  if (!abre || !fecha) return true;
-  const t = agora.getTime();
-  return t >= new Date(abre).getTime() && t <= new Date(fecha).getTime();
+  if (!opensAt || !closesAt) return true;
+  const t = now.getTime();
+  return t >= new Date(opensAt).getTime() && t <= new Date(closesAt).getTime();
 }
 
-export function confirmacaoAindaNaoAbriu(abre: string | null, agora = new Date()) {
-  if (!abre) return false;
-  return agora.getTime() < new Date(abre).getTime();
+export function confirmationHasNotOpened(opensAt: string | null, now = new Date()) {
+  if (!opensAt) return false;
+  return now.getTime() < new Date(opensAt).getTime();
 }
 
-export function confirmacaoEncerrada(fecha: string | null, agora = new Date()) {
-  if (!fecha) return false;
-  return agora.getTime() > new Date(fecha).getTime();
+export function confirmationClosed(closesAt: string | null, now = new Date()) {
+  if (!closesAt) return false;
+  return now.getTime() > new Date(closesAt).getTime();
 }
 
 export function toDateString(date: Date) {
@@ -130,7 +130,7 @@ export function addDays(date: Date, days: number) {
   return d;
 }
 
-/** Segunda-feira 00:00 da semana da data informada */
+/** Segunda-feira 00:00 da semana da date informada */
 export function getMondayOfWeek(date: Date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -144,19 +144,31 @@ export function getSundayOfWeek(monday: Date) {
   return addDays(monday, 6);
 }
 
-export function getIntervaloSemanaAtual(ref = new Date()) {
+export function getCurrentWeekRange(ref = new Date()) {
   const monday = getMondayOfWeek(ref);
   const sunday = getSundayOfWeek(monday);
-  const hoje = new Date(ref);
-  hoje.setHours(0, 0, 0, 0);
+  const today = new Date(ref);
+  today.setHours(0, 0, 0, 0);
   return {
-    inicioSemana: toDateString(monday),
-    fimSemana: toDateString(sunday),
-    hoje: toDateString(hoje),
+    weekStart: toDateString(monday),
+    weekEnd: toDateString(sunday),
+    today: toDateString(today),
   };
 }
 
-export function combineDateTime(data: string, hora: string) {
-  const h = formatHora(hora);
-  return new Date(`${data}T${h}:00`);
+export function getUpcomingWeeksRange(ref = new Date()) {
+  const monday = getMondayOfWeek(ref);
+  const nextSunday = getSundayOfWeek(addDays(monday, 7));
+  const today = new Date(ref);
+  today.setHours(0, 0, 0, 0);
+  return {
+    weekStart: toDateString(monday),
+    weekEnd: toDateString(nextSunday),
+    today: toDateString(today),
+  };
+}
+
+export function combineDateTime(date: string, time: string) {
+  const h = formatTime(time);
+  return new Date(`${date}T${h}:00`);
 }

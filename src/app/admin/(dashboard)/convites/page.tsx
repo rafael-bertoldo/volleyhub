@@ -1,21 +1,21 @@
 export const dynamic = "force-dynamic";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { LinkConvite } from "@/lib/types";
+import type { InviteLink } from "@/lib/types";
 import { ConviteForm } from "../../convite-form";
 import { ConvitesList } from "../../convites-list";
 
 export default async function ConvitesPage() {
   const supabase = createAdminClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://locationhost:3000";
 
   const { data: convites } = await supabase
-    .from("links_convite")
+    .from("invite_links")
     .select("*")
-    .order("criado_em", { ascending: false });
+    .order("created_at", { ascending: false });
 
   const disponiveis = (convites ?? []).filter(
-    (c) => !c.usado && (!c.expira_em || new Date(c.expira_em) >= new Date()),
+    (c) => !c.used && (!c.expires_at || new Date(c.expires_at) >= new Date()),
   ).length;
 
   return (
@@ -35,7 +35,7 @@ export default async function ConvitesPage() {
 
       <section className="card">
         <h2 className="section-title">Links gerados</h2>
-        <ConvitesList convites={(convites ?? []) as LinkConvite[]} appUrl={appUrl} />
+        <ConvitesList convites={(convites ?? []) as InviteLink[]} appUrl={appUrl} />
       </section>
     </div>
   );

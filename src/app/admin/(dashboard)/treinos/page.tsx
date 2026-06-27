@@ -1,19 +1,19 @@
 export const dynamic = "force-dynamic";
 
 import {
-  getParticipantesEvento,
-  getTreinosAdmin,
+  getParticipantesEvent,
+  getAdminTrainings,
 } from "@/lib/treinos-server";
 import { AdminTreinosList } from "./admin-treinos-list";
 
 export default async function AdminTreinosPage() {
-  const treinos = await getTreinosAdmin();
+  const treinos = await getAdminTrainings();
 
   const participantesEntries = await Promise.all(
-    treinos.map(async (t) => [t.id, await getParticipantesEvento(t.id)] as const),
+    treinos.map(async (t) => [t.id, await getParticipantesEvent(t.id)] as const),
   );
 
-  const participantesPorEvento = Object.fromEntries(participantesEntries);
+  const participantesPorEvent = Object.fromEntries(participantesEntries);
 
   return (
     <div className="space-y-6">
@@ -26,7 +26,7 @@ export default async function AdminTreinosPage() {
 
       <AdminTreinosList
         treinos={treinos}
-        participantesPorEvento={participantesPorEvento}
+        participantesPorEvent={participantesPorEvent}
       />
     </div>
   );

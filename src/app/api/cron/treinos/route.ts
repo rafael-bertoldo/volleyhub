@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { gerarTreinosSemana } from "@/lib/treinos-server";
+import { generateWeeklyTrainings } from "@/lib/treinos-server";
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
-  await gerarTreinosSemana();
+  await generateWeeklyTrainings();
 
   return NextResponse.json({ success: true });
 }

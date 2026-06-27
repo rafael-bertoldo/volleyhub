@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { broadcastGlobalFeed } from "@/lib/realtime/broadcast-server";
-import { uploadAnuncioImage } from "@/lib/storage/anuncios";
+import { uploadAnnouncementImage } from "@/lib/storage/announcements";
 import type { FeedItem } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -11,35 +11,35 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const titulo = (formData.get("titulo") as string | null)?.trim();
-    const corpo = (formData.get("corpo") as string | null)?.trim() ?? "";
+    const title = (formData.get("title") as string | null)?.trim();
+    const body = (formData.get("body") as string | null)?.trim() ?? "";
     const imagem = formData.get("imagem") as File | null;
     const hasImage = imagem && imagem.size > 0;
 
-    if (!titulo) {
+    if (!title) {
       return NextResponse.json({ error: "Informe o título." }, { status: 400 });
     }
 
-    if (!corpo && !hasImage) {
+    if (!body && !hasImage) {
       return NextResponse.json(
         { error: "Informe o conteúdo ou envie uma imagem." },
         { status: 400 },
       );
     }
 
-    let imagem_url: string | null = null;
+    let image_url: string | null = null;
     if (hasImage && imagem) {
-      imagem_url = await uploadAnuncioImage(imagem);
+      image_url = await uploadAnnouncementImage(imagem);
     }
 
     const supabase = createAdminClient();
 
     const { data: anuncio, error: anuncioError } = await supabase
-      .from("anuncios")
+      .from("announcements")
       .insert({
-        titulo,
-        corpo,
-        imagem_url,
+        title,
+        body,
+        image_url,
       })
       .select()
       .single();
@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
     const { data: feedItem, error: feedError } = await supabase
       .from("feed")
       .insert({
-        tipo: "anuncio",
-        atleta_id: null,
-        anuncio_id: anuncio.id,
-        titulo: anuncio.titulo,
-        corpo: anuncio.corpo,
-        imagem_url: anuncio.imagem_url,
+        type: "announcement",
+        player_id: null,
+        announcement_id: anuncio.id,
+        title: anuncio.title,
+        body: anuncio.body,
+        image_url: anuncio.image_url,
       })
       .select()
       .single();

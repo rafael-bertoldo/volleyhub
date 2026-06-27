@@ -1,27 +1,27 @@
-import type { Anuncio, FeedItem } from "./types";
+import type { Announcement, FeedItem } from "./types";
 
-export function feedItemMatchesAnuncio(
+export function feedItemMatchesAnnouncement(
   item: FeedItem,
-  anuncio: Pick<Anuncio, "id" | "titulo" | "corpo" | "imagem_url">,
+  anuncio: Pick<Announcement, "id" | "title" | "body" | "image_url">,
 ): boolean {
-  if (item.tipo !== "anuncio" || item.atleta_id !== null) return false;
-  if (item.anuncio_id === anuncio.id) return true;
-  if (item.anuncio_id) return false;
+  if (item.type !== "announcement" || item.player_id !== null) return false;
+  if (item.announcement_id === anuncio.id) return true;
+  if (item.announcement_id) return false;
 
   return (
-    item.titulo === anuncio.titulo &&
-    item.corpo === anuncio.corpo &&
-    (item.imagem_url ?? null) === (anuncio.imagem_url ?? null)
+    item.title === anuncio.title &&
+    item.body === anuncio.body &&
+    (item.image_url ?? null) === (anuncio.image_url ?? null)
   );
 }
 
-export function formatAnuncioWhatsApp(
-  titulo: string,
-  corpo: string,
+export function formatAnnouncementWhatsApp(
+  title: string,
+  body: string,
   imagemUrl?: string | null,
 ) {
-  let text = `🏐 *Roxinhos*\n\n*${titulo}*`;
-  if (corpo.trim()) text += `\n\n${corpo}`;
+  let text = `🏐 *VolleyHub*\n\n*${title}*`;
+  if (body.trim()) text += `\n\n${body}`;
   if (imagemUrl) text += `\n\n📷 ${imagemUrl}`;
   return text;
 }

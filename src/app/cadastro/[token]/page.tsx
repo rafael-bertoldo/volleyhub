@@ -14,7 +14,7 @@ export default async function CadastroPage({ params }: PageProps) {
   const supabase = createAdminClient();
 
   const { data: convite } = await supabase
-    .from("links_convite")
+    .from("invite_links")
     .select("*")
     .eq("token", token)
     .single();
@@ -24,16 +24,16 @@ export default async function CadastroPage({ params }: PageProps) {
   }
 
   const expirado =
-    convite.expira_em && new Date(convite.expira_em) < new Date();
+    convite.expires_at && new Date(convite.expires_at) < new Date();
 
-  if (convite.usado) {
+  if (convite.used) {
     return (
       <PageShell>
         <div className="text-center space-y-3">
           <div className="text-4xl">🔗</div>
           <h1 className="text-xl font-bold text-gray-900">Link já utilizado</h1>
           <p className="text-gray-600 text-sm">
-            Este link de cadastro já foi usado. Se você já se cadastrou, peça seu
+            Este link de cadastro já foi used. Se você já se cadastrou, peça seu
             link de acesso ao administrador.
           </p>
         </div>
@@ -48,7 +48,7 @@ export default async function CadastroPage({ params }: PageProps) {
           <div className="text-4xl">⏰</div>
           <h1 className="text-xl font-bold text-gray-900">Link expirado</h1>
           <p className="text-gray-600 text-sm">
-            Este link de cadastro não é mais válido. Solicite um novo ao administrador.
+            Este link de cadastro não é mais váis_read. Solicite um novo ao administrador.
           </p>
         </div>
       </PageShell>

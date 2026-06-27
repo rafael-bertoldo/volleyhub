@@ -1,35 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { nanoid } from "nanoid";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { athleteCookieOptions } from "@/lib/auth/athlete-cookie";
-import { MODALIDADES } from "@/lib/constants";
-import type { CadastroFormData } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
+import { MEMBERSHIP_TYPES, POSITIONS } from "@/lib/constants";
+import type { SignupFormData } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CadastroFormData & {
-      convite_token: string;
+    const body = (await request.json()) as SignupFormData & {
+      email?: string;
+      password?: string;
+      convite_token?: string;
     };
 
     const {
       convite_token,
-      nome,
-      nascimento,
-      endereco,
-      bairro_cidade,
-      modalidade,
-      interesse_competicoes,
-      observacoes,
+      email,
+      password,
+      name,
+      nickname,
+      birth_date,
+      address,
+      city_area,
+      preferred_position,
+      membership_type,
+      competition_interest,
+      notes,
     } = body;
 
     if (
-      !convite_token ||
-      !nome?.trim() ||
-      !nascimento ||
-      !endereco?.trim() ||
-      !bairro_cidade?.trim() ||
-      !modalidade ||
-      !interesse_competicoes
+      !email?.trim() ||
+      !password ||
+      !name?.trim() ||
+      !birth_date ||
+      !address?.trim() ||
+      !city_area?.trim() ||
+      !preferred_position ||
+      !membership_type ||
+      !competition_interest
     ) {
       return NextResponse.json(
         { error: "Preencha todos os campos obrigatórios." },
@@ -37,89 +44,133 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const modalidadeInfo = MODALIDADES.find((m) => m.value === modalidade);
-    if (!modalidadeInfo) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "A senha deve ter pelo menos 6 caracteres." },
+        { status: 400 },
+      );
+    }
+
+    const membership_typeInfo = MEMBERSHIP_TYPES.find((m) => m.value === membership_type);
+    if (!membership_typeInfo) {
       return NextResponse.json({ error: "Modalidade inválida." }, { status: 400 });
+    }
+
+    const preferred_positionInfo = POSITIONS.find((p) => p.value === preferred_position);
+    if (!preferred_positionInfo) {
+      return NextResponse.json({ error: "Posição inválida." }, { status: 400 });
     }
 
     const supabase = createAdminClient();
 
-    const { data: convite, error: conviteError } = await supabase
-      .from("links_convite")
-      .select("*")
-      .eq("token", convite_token)
-      .single();
+    let convite: { id: string } | null = null;
 
-    if (conviteError || !convite) {
-      return NextResponse.json(
-        { error: "Link de cadastro inválido." },
-        { status: 404 },
-      );
+    if (convite_token) {
+      const { data: inviteLink, error: conviteError } = await supabase
+        .from("invite_links")
+        .select("*")
+        .eq("token", convite_token)
+        .single();
+
+      if (conviteError || !inviteLink) {
+        return NextResponse.json(
+          { error: "Link de cadastro inválido." },
+          { status: 404 },
+        );
+      }
+
+      if (inviteLink.used) {
+        return NextResponse.json(
+          { error: "Este link de cadastro já foi utilizado." },
+          { status: 400 },
+        );
+      }
+
+      if (inviteLink.expires_at && new Date(inviteLink.expires_at) < new Date()) {
+        return NextResponse.json(
+          { error: "Este link de cadastro expirou." },
+          { status: 400 },
+        );
+      }
+
+      convite = inviteLink;
     }
 
-    if (convite.usado) {
+    const membership_typeStatus = membership_typeInfo.requiresApproval ? "pending" : "approved";
+
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { name: name.trim() },
+    });
+
+    if (authError || !authData.user) {
       return NextResponse.json(
-        { error: "Este link de cadastro já foi utilizado." },
+        { error: "Não foi possível criar o acesso. Verifique o e-mail informado." },
         { status: 400 },
       );
     }
 
-    if (convite.expira_em && new Date(convite.expira_em) < new Date()) {
-      return NextResponse.json(
-        { error: "Este link de cadastro expirou." },
-        { status: 400 },
-      );
-    }
-
-    const accessToken = nanoid(32);
-    const modalidadeStatus = modalidadeInfo.requerAprovacao ? "pendente" : "aprovado";
-
-    const { data: atleta, error: atletaError } = await supabase
-      .from("atletas")
+    const { data: player, error: playerError } = await supabase
+      .from("players")
       .insert({
-        nome: nome.trim(),
-        nascimento,
-        endereco: endereco.trim(),
-        bairro_cidade: bairro_cidade.trim(),
-        modalidade,
-        modalidade_status: modalidadeStatus,
-        interesse_competicoes,
-        observacoes: observacoes?.trim() || null,
-        access_token: accessToken,
+        auth_user_id: authData.user.id,
+        email: normalizedEmail,
+        name: name.trim(),
+        nickname: nickname?.trim() || null,
+        birth_date,
+        address: address.trim(),
+        city_area: city_area.trim(),
+        preferred_position,
+        membership_type,
+        membership_status: membership_typeStatus,
+        competition_interest,
+        notes: notes?.trim() || null,
       })
-      .select("access_token")
+      .select("id")
       .single();
 
-    if (atletaError || !atleta) {
-      console.error("Erro ao criar atleta:", atletaError);
+    if (playerError || !player) {
+      console.error("Erro ao criar atleta:", playerError);
+      await supabase.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json(
         { error: "Erro ao realizar cadastro. Tente novamente." },
         { status: 500 },
       );
     }
 
-    await supabase
-      .from("links_convite")
-      .update({ usado: true })
-      .eq("id", convite.id);
+    if (convite) {
+      await supabase
+        .from("invite_links")
+        .update({ used: true })
+        .eq("id", convite.id);
+    }
 
-    if (modalidadeStatus === "pendente") {
+    if (membership_typeStatus === "pending") {
       await supabase.from("feed").insert({
-        tipo: "sistema",
-        atleta_id: null,
-        titulo: "Novo cadastro pendente",
-        corpo: `${nome.trim()} solicitou modalidade ${modalidade}. Aguardando aprovação.`,
+        type: "system",
+        player_id: null,
+        title: "Novo cadastro pendente",
+        body: `${name.trim()} solicitou modalidade ${membership_type}. Aguardando aprovação.`,
       });
     }
 
-    const response = NextResponse.json({
-      access_token: atleta.access_token,
-      redirect: `/a/${atleta.access_token}`,
+    const authClient = await createClient();
+    const { error: signInError } = await authClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
     });
 
-    response.cookies.set(athleteCookieOptions(atleta.access_token));
+    if (signInError) {
+      return NextResponse.json({
+        success: true,
+        redirect: "/login",
+      });
+    }
 
-    return response;
+    return NextResponse.json({ success: true, redirect: "/a" });
   } catch (error) {
     console.error("Erro no cadastro:", error);
     return NextResponse.json(

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
-import { getMensalidadeMesAtual, isMensalista } from "@/lib/mensalidade";
+import { getCurrentMembershipFeeMonth, isMember } from "@/lib/mensalidade";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Atleta } from "@/lib/types";
+import type { Player } from "@/lib/types";
 
 export async function POST(
   _request: NextRequest,
@@ -14,38 +14,38 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  const { data: atleta } = await supabase
-    .from("atletas")
-    .select("id, modalidade, modalidade_status")
+  const { data: player } = await supabase
+    .from("players")
+    .select("id, membership_type, membership_status")
     .eq("id", id)
     .single();
 
-  if (!atleta) {
+  if (!player) {
     return NextResponse.json({ error: "Atleta não encontrado." }, { status: 404 });
   }
 
-  if (!isMensalista(atleta as Pick<Atleta, "modalidade" | "modalidade_status">)) {
+  if (!isMember(player as Pick<Player, "membership_type" | "membership_status">)) {
     return NextResponse.json(
       { error: "Mensalidade só se aplica a mensalistas aprovados." },
       { status: 400 },
     );
   }
 
-  const mensalidadeMes = getMensalidadeMesAtual();
+  const mensalidadeMes = getCurrentMembershipFeeMonth();
 
   const { data, error } = await supabase
-    .from("atletas")
+    .from("players")
     .update({
-      mensalidade_mes: mensalidadeMes,
-      mensalidade_paga_em: new Date().toISOString(),
+      membership_fee_month: mensalidadeMes,
+      membership_fee_paid_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .select("id, mensalidade_mes, mensalidade_paga_em")
+    .select("id, membership_fee_month, membership_fee_paid_at")
     .single();
 
   if (error || !data) {
     return NextResponse.json({ error: "Erro ao registrar pagamento." }, { status: 500 });
   }
 
-  return NextResponse.json({ atleta: data });
+  return NextResponse.json({ player: data });
 }

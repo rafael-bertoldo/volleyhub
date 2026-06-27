@@ -1,145 +1,158 @@
-export type Modalidade = "ON" | "MF" | "MR" | "MP" | "A";
-export type ModalidadeStatus = "pendente" | "aprovado" | "recusado";
-export type InteresseCompeticoes = "sim" | "nao";
+export type MembershipType = "ON" | "MF" | "MR" | "MP" | "A";
+export type MembershipStatus = "pending" | "approved" | "rejected";
+export type CompetitionInterest = "yes" | "no";
+export type PreferredPosition =
+  | "setter"
+  | "outside_hitter"
+  | "opposite"
+  | "middle_blocker"
+  | "libero";
 
-export interface Atleta {
+export interface Player {
   id: string;
-  nome: string;
-  nascimento: string;
-  endereco: string;
-  bairro_cidade: string;
-  modalidade: Modalidade;
-  modalidade_status: ModalidadeStatus;
-  interesse_competicoes: InteresseCompeticoes;
-  observacoes: string | null;
-  access_token: string;
-  ativo: boolean;
-  criado_em: string;
-  mensalidade_mes: string | null;
-  mensalidade_paga_em: string | null;
+  auth_user_id: string | null;
+  email: string | null;
+  name: string;
+  nickname: string | null;
+  birth_date: string;
+  address: string;
+  city_area: string;
+  preferred_position: PreferredPosition | null;
+  membership_type: MembershipType;
+  membership_status: MembershipStatus;
+  competition_interest: CompetitionInterest;
+  notes: string | null;
+  access_token: string | null;
+  active: boolean;
+  created_at: string;
+  membership_fee_month: string | null;
+  membership_fee_paid_at: string | null;
 }
 
-export interface LinkConvite {
+export interface InviteLink {
   id: string;
   token: string;
-  usado: boolean;
-  expira_em: string | null;
-  criado_em: string;
+  used: boolean;
+  expires_at: string | null;
+  created_at: string;
 }
 
-export interface CadastroFormData {
-  nome: string;
-  nascimento: string;
-  endereco: string;
-  bairro_cidade: string;
-  modalidade: Modalidade;
-  interesse_competicoes: InteresseCompeticoes;
-  observacoes: string;
+export interface SignupFormData {
+  name: string;
+  nickname: string;
+  birth_date: string;
+  address: string;
+  city_area: string;
+  preferred_position: PreferredPosition | "";
+  membership_type: MembershipType;
+  competition_interest: CompetitionInterest;
+  notes: string;
 }
 
-export type TipoFeed = "anuncio" | "convocacao" | "lembrete" | "sistema";
+export type FeedItemType = "announcement" | "call_up" | "reminder" | "system";
 
 export interface FeedItem {
   id: string;
-  tipo: TipoFeed;
-  atleta_id: string | null;
-  evento_id: string | null;
-  anuncio_id: string | null;
-  titulo: string;
-  corpo: string;
-  imagem_url: string | null;
-  lido: boolean;
-  criado_em: string;
+  type: FeedItemType;
+  player_id: string | null;
+  event_id: string | null;
+  announcement_id: string | null;
+  title: string;
+  body: string;
+  image_url: string | null;
+  is_read: boolean;
+  created_at: string;
 }
 
-export interface Anuncio {
+export interface Announcement {
   id: string;
-  titulo: string;
-  corpo: string;
-  imagem_url: string | null;
-  criado_em: string;
+  title: string;
+  body: string;
+  image_url: string | null;
+  created_at: string;
 }
 
-export type TipoEvento = "treino" | "amistoso" | "jogo";
-export type OrigemEvento = "recorrente" | "manual";
-export type StatusPresenca =
-  | "reservado"
-  | "confirmado"
-  | "liberado"
-  | "fila_espera"
-  | "aguardando_pagamento";
+export type EventType = "training" | "friendly" | "game";
+export type EventSource = "recurring" | "manual";
+export type AttendanceStatus =
+  | "reserved"
+  | "confirmed"
+  | "released"
+  | "waitlist"
+  | "pending_payment";
 
-export interface Evento {
+export interface Event {
   id: string;
-  tipo: TipoEvento;
-  data: string;
-  hora_inicio: string;
-  hora_fim: string;
-  local: string;
-  capacidade: number;
-  adversario: string;
-  observacoes: string;
-  confirmacao_abre_em: string | null;
-  confirmacao_fecha_em: string | null;
-  origem: OrigemEvento;
-  criado_em: string;
+  type: EventType;
+  date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  capacity: number;
+  opponent: string;
+  notes: string;
+  confirmation_opens_at: string | null;
+  confirmation_closes_at: string | null;
+  source: EventSource;
+  created_at: string;
 }
 
-export interface Presenca {
+export interface Attendance {
   id: string;
-  evento_id: string;
-  atleta_id: string;
-  status: StatusPresenca;
-  posicao_fila: number | null;
-  criado_em: string;
-  confirmado_em: string | null;
+  event_id: string;
+  player_id: string;
+  status: AttendanceStatus;
+  waitlist_position: number | null;
+  created_at: string;
+  confirmed_at: string | null;
 }
 
-export interface TreinoComPresenca extends Evento {
-  presenca: Presenca | null;
-  vagas_ocupadas: number;
+export interface TrainingWithAttendance extends Event {
+  attendance: Attendance | null;
+  occupied_spots: number;
 }
 
-export type StatusConvocacao = "pendente" | "aceito" | "recusado";
+export type CallUpStatus = "pending" | "accepted" | "declined";
 
-export interface Convocacao {
+export interface CallUp {
   id: string;
-  evento_id: string;
-  atleta_id: string;
-  status: StatusConvocacao;
-  mensagem: string | null;
-  convocado_em: string;
-  respondido_em: string | null;
+  event_id: string;
+  player_id: string;
+  status: CallUpStatus;
+  message: string | null;
+  called_up_at: string;
+  responded_at: string | null;
 }
 
-export interface ConvocacaoComEvento extends Convocacao {
-  evento: Evento;
+export interface CallUpWithEvent extends CallUp {
+  event: Event;
 }
 
-export interface JogoComConvocacoes extends Evento {
-  convocacoes: ConvocacaoComAtleta[];
-  stats: ConvocacaoStats;
+export interface GameWithCallUps extends Event {
+  call_ups: CallUpWithPlayer[];
+  stats: CallUpStats;
 }
 
-export interface ConvocacaoComAtleta extends Convocacao {
-  atleta: Pick<Atleta, "id" | "nome" | "modalidade">;
+export interface CallUpWithPlayer extends CallUp {
+  player: Pick<Player, "id" | "name" | "nickname" | "membership_type">;
 }
 
-export interface ConvocacaoStats {
+export interface CallUpStats {
   total: number;
-  pendentes: number;
-  aceitos: number;
-  recusados: number;
+  pending: number;
+  accepted: number;
+  declined: number;
 }
 
-export interface AtletaElegivel {
+export interface EligiblePlayer {
   id: string;
-  nome: string;
-  modalidade: Modalidade;
-  grupo: "mensalista" | "avulso";
-  ja_convocado: boolean;
+  name: string;
+  nickname: string | null;
+  membership_type: MembershipType;
+  group: "member" | "drop_in";
+  already_called_up: boolean;
 }
 
-export interface FeedItemComConvocacao extends FeedItem {
-  convocacao_status?: StatusConvocacao | null;
+export interface FeedItemWithCallUp extends FeedItem {
+  call_up_status?: CallUpStatus | null;
 }

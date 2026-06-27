@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const customToken = (body.token as string | undefined)?.trim();
-    const expiraEmDias = Number(body.expira_em_dias) || 0;
+    const expiraEmDias = Number(body.expires_at_dias) || 0;
 
     let token = customToken;
     if (token) {
@@ -28,17 +28,17 @@ export async function POST(request: NextRequest) {
       token = nanoid(12);
     }
 
-    let expira_em: string | null = null;
+    let expires_at: string | null = null;
     if (expiraEmDias > 0) {
       const expira = new Date();
       expira.setDate(expira.getDate() + expiraEmDias);
-      expira_em = expira.toISOString();
+      expires_at = expira.toISOString();
     }
 
     const supabase = createAdminClient();
     const { data: convite, error } = await supabase
-      .from("links_convite")
-      .insert({ token, expira_em })
+      .from("invite_links")
+      .insert({ token, expires_at })
       .select()
       .single();
 

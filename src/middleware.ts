@@ -1,23 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { athleteCookieOptions } from "@/lib/auth/athlete-cookie";
-import { ATHLETE_COOKIE_NAME } from "@/lib/constants";
 import { isAllowedAdmin, updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const athleteToken = request.cookies.get(ATHLETE_COOKIE_NAME)?.value;
 
-  if (pathname === "/" && athleteToken) {
-    return NextResponse.redirect(new URL(`/a/${athleteToken}`, request.url));
-  }
-
-  const athletePathMatch = pathname.match(/^\/a\/([^/]+)$/);
-  if (athletePathMatch) {
-    const token = athletePathMatch[1];
-    const { response } = await updateSession(request);
-    response.cookies.set(athleteCookieOptions(token));
-    return response;
-  }
+  const isAthleteRoute = pathname === "/a" || pathname.startsWith("/a/");
+  const isAthleteLogin = pathname === "/login";
 
   const isAdminRoute = pathname.startsWith("/admin");
   const isAdminLogin = pathname === "/admin/login";
@@ -34,13 +22,28 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isAdminLogin && isAdmin) {
-      return NextResponse.redirect(new URL("/admin/anuncios", request.url));
+      return NextResponse.redirect(new URL("/admin/announcements", request.url));
     }
 
     if (isAdminApi && !isAdminLoginApi && !isAdmin) {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     }
 
+    return response;
+  }
+
+  if (isAthleteRoute) {
+    const { response, user } = await updateSession(request);
+
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    return response;
+  }
+
+  if (isAthleteLogin) {
+    const { response } = await updateSession(request);
     return response;
   }
 

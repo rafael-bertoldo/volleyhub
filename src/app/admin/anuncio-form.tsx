@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-export function AnuncioForm() {
+export function AnnouncementForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [titulo, setTitulo] = useState("");
-  const [corpo, setCorpo] = useState("");
+  const [title, setTitulo] = useState("");
+  const [body, setCorpo] = useState("");
   const [imagem, setImagem] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export function AnuncioForm() {
     setError(null);
     setSuccess(false);
 
-    if (!corpo.trim() && !imagem) {
+    if (!body.trim() && !imagem) {
       setError("Informe o conteúdo ou envie uma imagem.");
       setLoading(false);
       return;
@@ -45,19 +45,19 @@ export function AnuncioForm() {
 
     try {
       const formData = new FormData();
-      formData.append("titulo", titulo);
-      formData.append("corpo", corpo);
+      formData.append("title", title);
+      formData.append("body", body);
       if (imagem) formData.append("imagem", imagem);
 
-      const res = await fetch("/api/admin/anuncios", {
+      const res = await fetch("/api/admin/announcements", {
         method: "POST",
         body: formData,
       });
 
-      const data = await res.json();
+      const date = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Erro ao publicar.");
+        setError(date.error ?? "Erro ao publicar.");
         return;
       }
 
@@ -87,14 +87,14 @@ export function AnuncioForm() {
       )}
 
       <div>
-        <label htmlFor="anuncio-titulo" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="anuncio-title" className="block text-sm font-medium text-gray-700 mb-1">
           Título *
         </label>
         <input
-          id="anuncio-titulo"
+          id="anuncio-title"
           type="text"
           required
-          value={titulo}
+          value={title}
           onChange={(e) => setTitulo(e.target.value)}
           className="input-field"
           placeholder="Ex: Escalação do amistoso"
@@ -102,13 +102,13 @@ export function AnuncioForm() {
       </div>
 
       <div>
-        <label htmlFor="anuncio-corpo" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="anuncio-body" className="block text-sm font-medium text-gray-700 mb-1">
           Conteúdo
         </label>
         <textarea
-          id="anuncio-corpo"
+          id="anuncio-body"
           rows={3}
-          value={corpo}
+          value={body}
           onChange={(e) => setCorpo(e.target.value)}
           className="input-field resize-none"
           placeholder="Texto complementar (opcional se enviar imagem)"

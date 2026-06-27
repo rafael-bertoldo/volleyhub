@@ -19,7 +19,7 @@ export function ShellNav({ items, variant }: ShellNavProps) {
   const pathname = usePathname();
 
   function isActive(href: string) {
-    if (href.endsWith("/admin") || href.match(/\/a\/[^/]+$/)) {
+    if (href === "/" || href === "/a" || href === "/admin") {
       return pathname === href;
     }
     return pathname === href || pathname.startsWith(href + "/");

@@ -3,43 +3,43 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ParticipantesLista } from "@/components/treinos/participantes-lista";
-import { useTreinosPresencaRealtime } from "@/hooks/use-presencas-realtime";
-import { formatDataTreino, formatHora } from "@/lib/treinos";
-import type { ParticipanteTreino } from "@/lib/treinos-server";
-import type { TreinoComPresenca } from "@/lib/types";
+import { useTreinosAttendanceRealtime } from "@/hooks/use-attendances-realtime";
+import { formatTrainingDate, formatTime } from "@/lib/treinos";
+import type { TrainingParticipant } from "@/lib/treinos-server";
+import type { TrainingWithAttendance } from "@/lib/types";
 
 interface AdminTreinosListProps {
-  treinos: TreinoComPresenca[];
-  participantesPorEvento: Record<string, ParticipanteTreino[]>;
+  treinos: TrainingWithAttendance[];
+  participantesPorEvent: Record<string, TrainingParticipant[]>;
 }
 
 export function AdminTreinosList({
   treinos,
-  participantesPorEvento,
+  participantesPorEvent,
 }: AdminTreinosListProps) {
   const router = useRouter();
-  const [presencaVersion, setPresencaVersion] = useState(0);
+  const [attendanceVersion, setAttendanceVersion] = useState(0);
 
-  const onPresencaUpdate = useCallback(() => {
-    setPresencaVersion((v) => v + 1);
+  const onAttendanceUpdate = useCallback(() => {
+    setAttendanceVersion((v) => v + 1);
     router.refresh();
   }, [router]);
 
-  useTreinosPresencaRealtime(
+  useTreinosAttendanceRealtime(
     treinos.map((t) => t.id),
-    onPresencaUpdate,
+    onAttendanceUpdate,
   );
 
   async function handleAdminAction(
-    presencaId: string,
+    attendanceId: string,
     action: "confirmar_pagamento" | "rejeitar_pagamento" | "subir_fila",
   ) {
-    const res = await fetch("/api/admin/treinos/presenca", {
+    const res = await fetch("/api/admin/trainings/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ presenca_id: presencaId, action }),
+      body: JSON.stringify({ attendance_id: attendanceId, action }),
     });
-    if (res.ok) onPresencaUpdate();
+    if (res.ok) onAttendanceUpdate();
   }
 
   if (treinos.length === 0) {
@@ -53,11 +53,11 @@ export function AdminTreinosList({
   return (
     <div className="space-y-4">
       {treinos.map((treino) => {
-        const participantes = participantesPorEvento[treino.id] ?? [];
-        const confirmados = participantes.filter((p) => p.status === "confirmado").length;
-        const reservados = participantes.filter((p) => p.status === "reservado").length;
+        const participantes = participantesPorEvent[treino.id] ?? [];
+        const confirmados = participantes.filter((p) => p.status === "confirmed").length;
+        const reservados = participantes.filter((p) => p.status === "reserved").length;
         const aguardando = participantes.filter(
-          (p) => p.status === "aguardando_pagamento",
+          (p) => p.status === "pending_payment",
         ).length;
 
         return (
@@ -65,15 +65,15 @@ export function AdminTreinosList({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold text-gray-900">
-                  {formatDataTreino(treino.data)}
+                  {formatTrainingDate(treino.date)}
                 </p>
                 <p className="text-sm text-gray-600 mt-0.5">
-                  {formatHora(treino.hora_inicio)} – {formatHora(treino.hora_fim)}
-                  {treino.local ? ` · ${treino.local}` : ""}
+                  {formatTime(treino.start_time)} – {formatTime(treino.end_time)}
+                  {treino.location ? ` · ${treino.location}` : ""}
                 </p>
               </div>
               <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
-                {treino.vagas_ocupadas}/{treino.capacidade} vagas
+                {treino.occupied_spots}/{treino.capacity} vagas
               </span>
             </div>
 
@@ -86,10 +86,10 @@ export function AdminTreinosList({
             </div>
 
             <ParticipantesLista
-              eventoId={treino.id}
+              eventId={treino.id}
               initialParticipantes={participantes}
               modo="admin"
-              presencaVersion={presencaVersion}
+              attendanceVersion={attendanceVersion}
               onAdminAction={handleAdminAction}
             />
           </article>

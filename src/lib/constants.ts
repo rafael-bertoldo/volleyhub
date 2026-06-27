@@ -1,49 +1,46 @@
-import type { Modalidade } from "./types";
+import type { MembershipType, PreferredPosition } from "./types";
 
-export const APP_NAME = "Roxinhos";
+export const APP_NAME = "VolleyHub";
 
-export const ATHLETE_COOKIE_NAME = "roxinhos_atleta_token";
-export const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400; // ~400 dias (máximo prático dos browsers)
-
-export const MODALIDADES: {
-  value: Modalidade;
+export const MEMBERSHIP_TYPES: {
+  value: MembershipType;
   label: string;
-  descricao: string;
-  requerAprovacao: boolean;
+  description: string;
+  requiresApproval: boolean;
 }[] = [
   {
     value: "ON",
     label: "ON",
-    descricao: "Mensalista terças e quintas",
-    requerAprovacao: true,
+    description: "Mensalista terças e quintas",
+    requiresApproval: true,
   },
   {
     value: "MF",
     label: "MF",
-    descricao: "Mensalista funcional — terças-feiras",
-    requerAprovacao: true,
+    description: "Mensalista funcional — terças-feiras",
+    requiresApproval: true,
   },
   {
     value: "MR",
     label: "MR",
-    descricao: "Mensalista recreativo — quintas-feiras",
-    requerAprovacao: true,
+    description: "Mensalista recreativo — quintas-feiras",
+    requiresApproval: true,
   },
   {
     value: "MP",
     label: "MP",
-    descricao: "Mensalista play — sextas-feiras",
-    requerAprovacao: true,
+    description: "Mensalista play — sextas-feiras",
+    requiresApproval: true,
   },
   {
     value: "A",
     label: "A",
-    descricao: "Avulso",
-    requerAprovacao: false,
+    description: "Avulso",
+    requiresApproval: false,
   },
 ];
 
-export const MODALIDADE_LABELS: Record<Modalidade, string> = {
+export const MEMBERSHIP_TYPE_LABELS: Record<MembershipType, string> = {
   ON: "ON — Terças e quintas",
   MF: "MF — Funcional (terças)",
   MR: "MR — Recreativo (quintas)",
@@ -51,10 +48,26 @@ export const MODALIDADE_LABELS: Record<Modalidade, string> = {
   A: "Avulso",
 };
 
-export const DIAS_POR_MODALIDADE: Record<Modalidade, number[]> = {
+export const WEEKDAYS_BY_MEMBERSHIP: Record<MembershipType, number[]> = {
   ON: [2, 4],
   MF: [2],
   MR: [4],
   MP: [5],
   A: [],
+};
+
+export const POSITIONS: { value: PreferredPosition; label: string }[] = [
+  { value: "setter", label: "Levantador" },
+  { value: "outside_hitter", label: "Ponteiro" },
+  { value: "opposite", label: "Oposto" },
+  { value: "middle_blocker", label: "Central" },
+  { value: "libero", label: "Líbero" },
+];
+
+export const POSITION_LABELS: Record<PreferredPosition, string> = {
+  setter: "Levantador",
+  outside_hitter: "Ponteiro",
+  opposite: "Oposto",
+  middle_blocker: "Central",
+  libero: "Líbero",
 };

@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function DeleteAnuncioButton({
+export function DeleteAnnouncementButton({
   anuncioId,
-  titulo,
+  title,
 }: {
   anuncioId: string;
-  titulo: string;
+  title: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ export function DeleteAnuncioButton({
   async function handleDelete() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/anuncios/${anuncioId}`, {
+      const res = await fetch(`/api/admin/announcements/${anuncioId}`, {
         method: "DELETE",
       });
       if (!res.ok) return;
@@ -31,7 +31,7 @@ export function DeleteAnuncioButton({
   if (confirming) {
     return (
       <div className="flex gap-2 flex-wrap">
-        <span className="text-xs text-red-600 self-center">Excluir &quot;{titulo}&quot;?</span>
+        <span className="text-xs text-red-600 self-center">Excluir &quot;{title}&quot;?</span>
         <button
           onClick={handleDelete}
           disabled={loading}

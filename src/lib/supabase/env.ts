@@ -1,6 +1,6 @@
 function missingEnvMessage(vars: string[]) {
   return (
-    `Variável de ambiente do Supabase ausente. Defina uma destas no .env.local: ${vars.join(" ou ")}. ` +
+    `Variável de ambiente do Supabase ausente. Defina uma destas no .env.location: ${vars.join(" ou ")}. ` +
     `Encontre as chaves em: Supabase Dashboard → Settings → API Keys.`
   );
 }

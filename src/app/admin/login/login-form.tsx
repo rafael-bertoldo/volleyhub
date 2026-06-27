@@ -23,14 +23,14 @@ export function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const date = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Erro ao entrar.");
+        setError(date.error ?? "Erro ao entrar.");
         return;
       }
 
-      router.push("/admin/anuncios");
+      router.push("/admin/announcements");
       router.refresh();
     } catch {
       setError("Erro de conexão. Tente novamente.");

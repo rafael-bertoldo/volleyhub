@@ -1,16 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AnuncioForm } from "../../anuncio-form";
-import { AnunciosList } from "../../anuncios-list";
-import type { Anuncio } from "@/lib/types";
+import { AnnouncementForm } from "../../anuncio-form";
+import { AnnouncementsList } from "../../announcements-list";
+import type { Announcement } from "@/lib/types";
 
-export default async function AnunciosPage() {
+export default async function AnnouncementsPage() {
   const supabase = createAdminClient();
-  const { data: anuncios } = await supabase
-    .from("anuncios")
+  const { data: announcements } = await supabase
+    .from("announcements")
     .select("*")
-    .order("criado_em", { ascending: false });
+    .order("created_at", { ascending: false });
 
   return (
     <div className="space-y-6">
@@ -23,12 +23,12 @@ export default async function AnunciosPage() {
 
       <section className="card">
         <h2 className="section-title">Novo anúncio</h2>
-        <AnuncioForm />
+        <AnnouncementForm />
       </section>
 
       <section className="card">
         <h2 className="section-title">Publicados</h2>
-        <AnunciosList anuncios={(anuncios ?? []) as Anuncio[]} />
+        <AnnouncementsList announcements={(announcements ?? []) as Announcement[]} />
       </section>
     </div>
   );

@@ -4,10 +4,10 @@ import { useState } from "react";
 
 interface CopyLinkButtonProps {
   url: string;
-  nome: string;
+  name: string;
 }
 
-export function CopyLinkButton({ url, nome }: CopyLinkButtonProps) {
+export function CopyLinkButton({ url, name }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -19,7 +19,7 @@ export function CopyLinkButton({ url, nome }: CopyLinkButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      title={`Copiar link de acesso de ${nome}`}
+      title={`Copiar link de acesso de ${name}`}
       className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
     >
       {copied ? "Copiado!" : "Copiar link"}

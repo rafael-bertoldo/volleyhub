@@ -2,41 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  broadcastAnuncioDeleted,
+  broadcastAnnouncementDeleted,
   broadcastFeedDeleted,
 } from "@/lib/realtime/broadcast-server";
-import type { Anuncio } from "@/lib/types";
+import type { Announcement } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const BUCKET = "anuncios";
+const BUCKET = "announcements";
 
-async function findFeedIdsForAnuncio(
+async function findFeedIdsForAnnouncement(
   supabase: SupabaseClient,
-  anuncio: Anuncio,
+  anuncio: Announcement,
 ): Promise<string[]> {
   const ids = new Set<string>();
 
-  const { data: byAnuncioId } = await supabase
+  const { data: byAnnouncementId } = await supabase
     .from("feed")
     .select("id")
-    .eq("anuncio_id", anuncio.id);
+    .eq("announcement_id", anuncio.id);
 
-  for (const row of byAnuncioId ?? []) {
+  for (const row of byAnnouncementId ?? []) {
     ids.add(row.id);
   }
 
   let legacyQuery = supabase
     .from("feed")
     .select("id")
-    .eq("tipo", "anuncio")
-    .is("atleta_id", null)
-    .is("anuncio_id", null)
-    .eq("titulo", anuncio.titulo)
-    .eq("corpo", anuncio.corpo);
+    .eq("type", "announcement")
+    .is("player_id", null)
+    .is("announcement_id", null)
+    .eq("title", anuncio.title)
+    .eq("body", anuncio.body);
 
-  legacyQuery = anuncio.imagem_url
-    ? legacyQuery.eq("imagem_url", anuncio.imagem_url)
-    : legacyQuery.is("imagem_url", null);
+  legacyQuery = anuncio.image_url
+    ? legacyQuery.eq("image_url", anuncio.image_url)
+    : legacyQuery.is("image_url", null);
 
   const { data: legacy } = await legacyQuery;
 
@@ -58,7 +58,7 @@ export async function DELETE(
   const supabase = createAdminClient();
 
   const { data: anuncio } = await supabase
-    .from("anuncios")
+    .from("announcements")
     .select("*")
     .eq("id", id)
     .single();
@@ -67,7 +67,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Anúncio não encontrado." }, { status: 404 });
   }
 
-  const feedIds = await findFeedIdsForAnuncio(supabase, anuncio as Anuncio);
+  const feedIds = await findFeedIdsForAnnouncement(supabase, anuncio as Announcement);
 
   if (feedIds.length > 0) {
     const { error: feedError } = await supabase
@@ -84,15 +84,15 @@ export async function DELETE(
     }
   }
 
-  if (anuncio.imagem_url) {
-    const path = extractStoragePath(anuncio.imagem_url);
+  if (anuncio.image_url) {
+    const path = extractStoragePath(anuncio.image_url);
     if (path) {
       await supabase.storage.from(BUCKET).remove([path]);
     }
   }
 
   const { error: anuncioError } = await supabase
-    .from("anuncios")
+    .from("announcements")
     .delete()
     .eq("id", id);
 
@@ -104,7 +104,7 @@ export async function DELETE(
   for (const feedId of feedIds) {
     await broadcastFeedDeleted(feedId);
   }
-  await broadcastAnuncioDeleted(anuncio as Anuncio);
+  await broadcastAnnouncementDeleted(anuncio as Announcement);
 
   return NextResponse.json({ success: true, feedIds });
 }

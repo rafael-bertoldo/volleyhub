@@ -1,12 +1,12 @@
 import Image from "next/image";
 
-interface AnuncioImageProps {
+interface AnnouncementImageProps {
   src: string;
   alt: string;
   className?: string;
 }
 
-export function AnuncioImage({ src, alt, className = "" }: AnuncioImageProps) {
+export function AnnouncementImage({ src, alt, className = "" }: AnnouncementImageProps) {
   return (
     <div className={`relative w-full overflow-hidden rounded-lg bg-gray-100 ${className}`}>
       <Image
