@@ -14,7 +14,7 @@ export default function HomePage() {
           href="/login"
           className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-violet-800 hover:bg-violet-50 transition-colors"
         >
-          Entrar como player
+          Entrar como atleta
         </Link>
         <Link
           href="/signup"
