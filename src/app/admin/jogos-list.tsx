@@ -20,6 +20,8 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
   const [callingUpId, setConvocandoId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const onCallUpUpdate = useCallback(() => {
     router.refresh();
@@ -31,36 +33,40 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
   );
 
   async function handleCancel(eventId: string) {
-    if (!window.confirm("Tem certeza que deseja cancelar este evento?")) return;
-
     setActionLoading(`cancel:${eventId}`);
+    setActionError(null);
     try {
       const res = await fetch(`/api/admin/games/${eventId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "cancel" }),
       });
-      if (res.ok) router.refresh();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setActionError(data?.error ?? "Erro ao cancelar evento.");
+        return;
+      }
+      setConfirmingAction(null);
+      router.refresh();
     } finally {
       setActionLoading(null);
     }
   }
 
   async function handleDelete(eventId: string) {
-    if (
-      !window.confirm(
-        "Excluir remove o evento, convocações e avisos relacionados. Deseja continuar?",
-      )
-    ) {
-      return;
-    }
-
     setActionLoading(`delete:${eventId}`);
+    setActionError(null);
     try {
       const res = await fetch(`/api/admin/games/${eventId}`, {
         method: "DELETE",
       });
-      if (res.ok) router.refresh();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setActionError(data?.error ?? "Erro ao excluir evento.");
+        return;
+      }
+      setConfirmingAction(null);
+      router.refresh();
     } finally {
       setActionLoading(null);
     }
@@ -155,30 +161,106 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
                   Remarcar
                 </button>
                 {jogo.status !== "canceled" && (
+                  confirmingAction === `cancel:${jogo.id}` ? (
+                    <InlineConfirm
+                      message="Cancelar este evento?"
+                      confirmLabel={
+                        actionLoading === `cancel:${jogo.id}` ? "Cancelando..." : "Confirmar"
+                      }
+                      disabled={actionLoading === `cancel:${jogo.id}`}
+                      onConfirm={() => handleCancel(jogo.id)}
+                      onCancel={() => setConfirmingAction(null)}
+                      tone="amber"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionError(null);
+                        setConfirmingAction(`cancel:${jogo.id}`);
+                      }}
+                      className="text-sm font-medium px-4 py-2 rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-50"
+                    >
+                      Cancelar evento
+                    </button>
+                  )
+                )}
+                {confirmingAction === `delete:${jogo.id}` ? (
+                  <InlineConfirm
+                    message="Excluir evento e convocações?"
+                    confirmLabel={
+                      actionLoading === `delete:${jogo.id}` ? "Excluindo..." : "Confirmar"
+                    }
+                    disabled={actionLoading === `delete:${jogo.id}`}
+                    onConfirm={() => handleDelete(jogo.id)}
+                    onCancel={() => setConfirmingAction(null)}
+                    tone="red"
+                  />
+                ) : (
                   <button
                     type="button"
-                    onClick={() => handleCancel(jogo.id)}
-                    disabled={actionLoading === `cancel:${jogo.id}`}
-                    className="text-sm font-medium px-4 py-2 rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                    onClick={() => {
+                      setActionError(null);
+                      setConfirmingAction(`delete:${jogo.id}`);
+                    }}
+                    className="text-sm font-medium px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
                   >
-                    {actionLoading === `cancel:${jogo.id}` ? "Cancelando..." : "Cancelar evento"}
+                    Excluir
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleDelete(jogo.id)}
-                  disabled={actionLoading === `delete:${jogo.id}`}
-                  className="text-sm font-medium px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  {actionLoading === `delete:${jogo.id}` ? "Excluindo..." : "Excluir"}
-                </button>
               </>
             )}
           </div>
+          {actionError && <p className="text-sm text-red-600">{actionError}</p>}
             </>
           )}
         </article>
       ))}
+    </div>
+  );
+}
+
+function InlineConfirm({
+  message,
+  confirmLabel,
+  disabled,
+  onConfirm,
+  onCancel,
+  tone,
+}: {
+  message: string;
+  confirmLabel: string;
+  disabled: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  tone: "amber" | "red";
+}) {
+  const confirmClass =
+    tone === "red"
+      ? "bg-red-600 text-white hover:bg-red-700"
+      : "bg-amber-500 text-white hover:bg-amber-600";
+
+  return (
+    <div className="flex w-full flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 sm:w-auto sm:flex-row sm:items-center">
+      <span className="text-sm text-gray-700">{message}</span>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={disabled}
+          className={`text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50 ${confirmClass}`}
+        >
+          {confirmLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled}
+          className="text-sm font-medium px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          Não
+        </button>
+      </div>
     </div>
   );
 }
