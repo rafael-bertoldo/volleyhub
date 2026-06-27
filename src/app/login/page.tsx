@@ -9,7 +9,7 @@ export default function PlayerLoginPage() {
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🏐</div>
           <h1 className="text-xl font-bold text-violet-900">{APP_NAME}</h1>
-          <p className="text-sm text-gray-500 mt-1">Área do player</p>
+          <p className="text-sm text-gray-500 mt-1">Área do atleta</p>
         </div>
         <LoginForm />
         <p className="text-center text-sm text-gray-500 mt-6">
