@@ -6,15 +6,20 @@ import { useJogosConvocacoesRealtime } from "@/hooks/use-attendances-realtime";
 import {
   CONVOCACAO_STATUS_BADGE,
   CONVOCACAO_STATUS_LABEL,
+  EVENT_STATUS_BADGE,
+  EVENT_STATUS_LABEL,
   formatJogoTitulo,
 } from "@/lib/jogos";
 import { formatPlayerName } from "@/lib/players";
 import { formatTrainingDate, formatTime } from "@/lib/treinos";
 import type { EligiblePlayer, CallUpWithPlayer, GameWithCallUps } from "@/lib/types";
+import { JogoForm } from "./jogo-form";
 
 export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
   const router = useRouter();
   const [callingUpId, setConvocandoId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const onCallUpUpdate = useCallback(() => {
     router.refresh();
@@ -25,6 +30,42 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
     onCallUpUpdate,
   );
 
+  async function handleCancel(eventId: string) {
+    if (!window.confirm("Tem certeza que deseja cancelar este evento?")) return;
+
+    setActionLoading(`cancel:${eventId}`);
+    try {
+      const res = await fetch(`/api/admin/games/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleDelete(eventId: string) {
+    if (
+      !window.confirm(
+        "Excluir remove o evento, convocações e avisos relacionados. Deseja continuar?",
+      )
+    ) {
+      return;
+    }
+
+    setActionLoading(`delete:${eventId}`);
+    try {
+      const res = await fetch(`/api/admin/games/${eventId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   if (!jogos.length) {
     return <p className="text-sm text-gray-500">Nenhum jogo ou amistoso agendado.</p>;
   }
@@ -33,6 +74,17 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
     <div className="space-y-4">
       {jogos.map((jogo) => (
         <article key={jogo.id} className="rounded-xl border border-gray-100 p-4 space-y-3">
+          {editingId === jogo.id ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-900">Remarcar evento</h3>
+              <JogoForm
+                event={jogo}
+                onDone={() => setEditingId(null)}
+                onCancel={() => setEditingId(null)}
+              />
+            </div>
+          ) : (
+            <>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p className="font-semibold text-gray-900">{formatJogoTitulo(jogo)}</p>
@@ -42,9 +94,16 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
                 {jogo.location ? ` · ${jogo.location}` : ""}
               </p>
             </div>
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
-              {jogo.capacity} vagas
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`text-xs font-medium px-2.5 py-1 rounded-full ${EVENT_STATUS_BADGE[jogo.status]}`}
+              >
+                {EVENT_STATUS_LABEL[jogo.status]}
+              </span>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
+                {jogo.capacity} vagas
+              </span>
+            </div>
           </div>
 
           {jogo.notes && (
@@ -70,23 +129,54 @@ export function JogosList({ jogos }: { jogos: GameWithCallUps[] }) {
             </ul>
           )}
 
-          <div className="pt-2 border-t border-gray-50">
-            {callingUpId === jogo.id ? (
+          <div className="pt-2 border-t border-gray-50 flex flex-wrap gap-2">
+            {jogo.status !== "canceled" && callingUpId === jogo.id ? (
               <ConvocarPanel
                 eventId={jogo.id}
                 capacity={jogo.capacity}
                 onClose={() => setConvocandoId(null)}
               />
             ) : (
-              <button
-                type="button"
-                onClick={() => setConvocandoId(jogo.id)}
-                className="text-sm font-medium px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700"
-              >
-                Convocar atletas
-              </button>
+              <>
+                {jogo.status !== "canceled" && (
+                  <button
+                    type="button"
+                    onClick={() => setConvocandoId(jogo.id)}
+                    className="text-sm font-medium px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700"
+                  >
+                    Convocar atletas
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setEditingId(jogo.id)}
+                  className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                >
+                  Remarcar
+                </button>
+                {jogo.status !== "canceled" && (
+                  <button
+                    type="button"
+                    onClick={() => handleCancel(jogo.id)}
+                    disabled={actionLoading === `cancel:${jogo.id}`}
+                    className="text-sm font-medium px-4 py-2 rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    {actionLoading === `cancel:${jogo.id}` ? "Cancelando..." : "Cancelar evento"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(jogo.id)}
+                  disabled={actionLoading === `delete:${jogo.id}`}
+                  className="text-sm font-medium px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {actionLoading === `delete:${jogo.id}` ? "Excluindo..." : "Excluir"}
+                </button>
+              </>
             )}
           </div>
+            </>
+          )}
         </article>
       ))}
     </div>

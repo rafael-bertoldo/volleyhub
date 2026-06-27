@@ -5,7 +5,11 @@ import {
   broadcastFeedToPlayer,
   broadcastJogoCallUpUpdate,
 } from "@/lib/realtime/broadcast-server";
-import { buildCallUpFeed } from "@/lib/jogos";
+import {
+  buildCallUpFeed,
+  buildGameCanceledFeed,
+  buildGameChangedFeed,
+} from "@/lib/jogos";
 import { normalizeTime } from "@/lib/treinos";
 import type {
   Player,
@@ -28,6 +32,8 @@ export interface CreateGameInput {
   capacity: number;
   notes?: string;
 }
+
+export type UpdateGameInput = CreateGameInput;
 
 function calcStats(call_ups: CallUpWithPlayer[]): CallUpStats {
   return {
@@ -53,6 +59,7 @@ export async function createGame(input: CreateGameInput): Promise<Event> {
       capacity: input.capacity,
       notes: input.notes?.trim() ?? "",
       source: "manual",
+      status: "scheduled",
     })
     .select()
     .single();
@@ -62,6 +69,152 @@ export async function createGame(input: CreateGameInput): Promise<Event> {
   }
 
   return data as Event;
+}
+
+async function notifyCalledPlayers(
+  event: Event,
+  feed: { title: string; body: string },
+) {
+  const supabase = createAdminClient();
+  const { data: callUps } = await supabase
+    .from("call_ups")
+    .select("player_id")
+    .eq("event_id", event.id);
+
+  const playerIds = [...new Set((callUps ?? []).map((callUp) => callUp.player_id))];
+
+  for (const playerId of playerIds) {
+    const { data: feedItem, error: feedError } = await supabase
+      .from("feed")
+      .insert({
+        type: "system",
+        player_id: playerId,
+        event_id: event.id,
+        title: feed.title,
+        body: feed.body,
+      })
+      .select()
+      .single();
+
+    if (!feedError && feedItem) {
+      await broadcastFeedToPlayer(playerId, feedItem as FeedItem);
+    }
+
+    await broadcastCallUpUpdate(playerId, { event_id: event.id });
+  }
+
+  await broadcastJogoCallUpUpdate(event.id, { event_id: event.id });
+}
+
+export async function updateGame(
+  eventId: string,
+  input: UpdateGameInput,
+): Promise<{ error?: string; event?: Event }> {
+  const supabase = createAdminClient();
+
+  const { data: current } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .in("type", ["game", "friendly"])
+    .single();
+
+  if (!current) return { error: "Evento não encontrado." };
+
+  const { data, error } = await supabase
+    .from("events")
+    .update({
+      type: input.type,
+      date: input.date,
+      start_time: normalizeTime(input.start_time),
+      end_time: normalizeTime(input.end_time),
+      location: input.location.trim(),
+      opponent: input.opponent.trim(),
+      capacity: input.capacity,
+      notes: input.notes?.trim() ?? "",
+      status: "scheduled",
+    })
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    return { error: "Erro ao atualizar evento." };
+  }
+
+  const updated = data as Event;
+  await notifyCalledPlayers(updated, buildGameChangedFeed(updated));
+
+  return { event: updated };
+}
+
+export async function cancelGame(eventId: string): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("events")
+    .update({ status: "canceled" })
+    .eq("id", eventId)
+    .in("type", ["game", "friendly"])
+    .select()
+    .single();
+
+  if (error || !data) {
+    return { error: "Evento não encontrado." };
+  }
+
+  const event = data as Event;
+  await notifyCalledPlayers(event, buildGameCanceledFeed(event));
+
+  return {};
+}
+
+export async function deleteGame(eventId: string): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .in("type", ["game", "friendly"])
+    .single();
+
+  if (!event) return { error: "Evento não encontrado." };
+
+  const { data: feedItems } = await supabase
+    .from("feed")
+    .select("id, player_id")
+    .eq("event_id", eventId);
+
+  const { data: callUps } = await supabase
+    .from("call_ups")
+    .select("player_id")
+    .eq("event_id", eventId);
+
+  await supabase.from("feed").delete().eq("event_id", eventId);
+
+  const { error } = await supabase.from("events").delete().eq("id", eventId);
+
+  if (error) {
+    return { error: "Erro ao excluir evento." };
+  }
+
+  for (const feedItem of feedItems ?? []) {
+    if (feedItem.player_id) {
+      await broadcastFeedDeletedToPlayer(feedItem.player_id, feedItem.id);
+    }
+  }
+
+  for (const callUp of callUps ?? []) {
+    await broadcastCallUpUpdate(callUp.player_id, {
+      event_id: eventId,
+      removed: true,
+    });
+  }
+
+  await broadcastJogoCallUpUpdate(eventId, { event_id: eventId, removed: true });
+
+  return {};
 }
 
 export async function getAdminGames(): Promise<GameWithCallUps[]> {
@@ -122,6 +275,7 @@ export async function getPlayersElegiveis(
     .select("capacity")
     .eq("id", eventId)
     .in("type", ["game", "friendly"])
+    .eq("status", "scheduled")
     .single();
 
   if (!event) {
@@ -186,6 +340,7 @@ export async function convocarPlayers(
     .select("*")
     .eq("id", eventId)
     .in("type", ["game", "friendly"])
+    .eq("status", "scheduled")
     .single();
 
   if (!event) return { error: "Evento não encontrado." };
@@ -287,6 +442,16 @@ export async function responderCallUp(
 
   if (!convocacao) {
     return { error: "Convocação não encontrada." };
+  }
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("status")
+    .eq("id", eventId)
+    .single();
+
+  if (event?.status === "canceled") {
+    return { error: "Este evento foi cancelado." };
   }
 
   if (convocacao.status !== "pending") {
@@ -394,7 +559,7 @@ export async function getJogosAceitosPlayer(playerId: string) {
       const event = Array.isArray(row.events) ? row.events[0] : row.events;
       return event;
     })
-    .filter((e): e is Event => !!e && e.date >= hoje)
+    .filter((e): e is Event => !!e && e.date >= hoje && e.status !== "canceled")
     .sort((a, b) => {
       const cmp = a.date.localeCompare(b.date);
       if (cmp !== 0) return cmp;

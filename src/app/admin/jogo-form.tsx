@@ -2,17 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { Event } from "@/lib/types";
 
-export function JogoForm() {
+interface JogoFormProps {
+  event?: Event;
+  onDone?: () => void;
+  onCancel?: () => void;
+}
+
+export function JogoForm({ event, onDone, onCancel }: JogoFormProps = {}) {
   const router = useRouter();
-  const [type, setTipo] = useState<"game" | "friendly">("game");
-  const [date, setData] = useState("");
-  const [horaInicio, setHoraInicio] = useState("");
-  const [horaFim, setHoraFim] = useState("");
-  const [location, setLocal] = useState("");
-  const [opponent, setAdversario] = useState("");
-  const [capacity, setCapacidade] = useState("12");
-  const [notes, setObservacoes] = useState("");
+  const [type, setTipo] = useState<"game" | "friendly">(
+    event?.type === "friendly" ? "friendly" : "game",
+  );
+  const [date, setData] = useState(event?.date ?? "");
+  const [horaInicio, setHoraInicio] = useState(event?.start_time?.slice(0, 5) ?? "");
+  const [horaFim, setHoraFim] = useState(event?.end_time?.slice(0, 5) ?? "");
+  const [location, setLocal] = useState(event?.location ?? "");
+  const [opponent, setAdversario] = useState(event?.opponent ?? "");
+  const [capacity, setCapacidade] = useState(String(event?.capacity ?? 12));
+  const [notes, setObservacoes] = useState(event?.notes ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,8 +31,8 @@ export function JogoForm() {
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/games", {
-        method: "POST",
+      const res = await fetch(event ? `/api/admin/games/${event.id}` : "/api/admin/games", {
+        method: event ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
@@ -43,13 +52,16 @@ export function JogoForm() {
         return;
       }
 
-      setData("");
-      setHoraInicio("");
-      setHoraFim("");
-      setLocal("");
-      setAdversario("");
-      setObservacoes("");
+      if (!event) {
+        setData("");
+        setHoraInicio("");
+        setHoraFim("");
+        setLocal("");
+        setAdversario("");
+        setObservacoes("");
+      }
       router.refresh();
+      onDone?.();
     } finally {
       setLoading(false);
     }
@@ -154,13 +166,25 @@ export function JogoForm() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
-      >
-        {loading ? "Salvando..." : "Criar jogo"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            Voltar
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+        >
+          {loading ? "Salvando..." : event ? "Salvar alterações" : "Criar jogo"}
+        </button>
+      </div>
     </form>
   );
 }

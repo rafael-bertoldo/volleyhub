@@ -74,6 +74,7 @@ export interface Announcement {
 
 export type EventType = "training" | "friendly" | "game";
 export type EventSource = "recurring" | "manual";
+export type EventStatus = "scheduled" | "canceled";
 export type AttendanceStatus =
   | "reserved"
   | "confirmed"
@@ -94,6 +95,7 @@ export interface Event {
   confirmation_opens_at: string | null;
   confirmation_closes_at: string | null;
   source: EventSource;
+  status: EventStatus;
   created_at: string;
 }
 
