@@ -187,6 +187,99 @@ export async function syncAttendancesReservadas(event: Event) {
   );
 }
 
+export async function reconcilePlayerTrainingAttendances(
+  player: Pick<Player, "id" | "membership_type" | "membership_status">,
+) {
+  await generateWeeklyTrainings();
+
+  const supabase = createAdminClient();
+  const { today, weekEnd } = getUpcomingWeeksRange();
+  const { data: events } = await supabase
+    .from("events")
+    .select("*")
+    .eq("type", "training")
+    .gte("date", today)
+    .lte("date", weekEnd);
+
+  const trainings = dedupeEvents((events ?? []) as Event[]);
+  if (!trainings.length) return;
+
+  const eventIds = trainings.map((event) => event.id);
+  const { data: attendances } = await supabase
+    .from("attendances")
+    .select("*")
+    .eq("player_id", player.id)
+    .in("event_id", eventIds);
+
+  const attendanceByEvent = new Map(
+    ((attendances ?? []) as Attendance[]).map((attendance) => [
+      attendance.event_id,
+      attendance,
+    ]),
+  );
+
+  const isApprovedMember =
+    player.membership_type !== "A" && player.membership_status === "approved";
+
+  for (const event of trainings) {
+    const attendance = attendanceByEvent.get(event.id);
+    const canReserve =
+      isApprovedMember &&
+      visibleWeekdaysForPlayer(player.membership_type).includes(
+        weekdayFromDate(event.date),
+      );
+
+    if (canReserve) {
+      if (!attendance) {
+        await supabase.from("attendances").insert({
+          event_id: event.id,
+          player_id: player.id,
+          status: "reserved" as AttendanceStatus,
+        });
+      } else if (
+        ["released", "waitlist", "pending_payment"].includes(attendance.status)
+      ) {
+        await supabase
+          .from("attendances")
+          .update({
+            status: "reserved" as AttendanceStatus,
+            waitlist_position: null,
+            confirmed_at: null,
+          })
+          .eq("id", attendance.id);
+
+        if (attendance.status === "waitlist") {
+          await renumberWaitlist(event.id);
+        }
+      }
+      continue;
+    }
+
+    if (attendance && attendance.status !== "released") {
+      const wasOccupyingSpot = ATTENDANCE_OCCUPIES_SPOT.includes(
+        attendance.status,
+      );
+      const wasWaitlisted = attendance.status === "waitlist";
+
+      await supabase
+        .from("attendances")
+        .update({
+          status: "released" as AttendanceStatus,
+          waitlist_position: null,
+          confirmed_at: null,
+        })
+        .eq("id", attendance.id);
+
+      if (wasWaitlisted) {
+        await renumberWaitlist(event.id);
+      }
+      if (wasOccupyingSpot) {
+        await promoteWaitlist(event.id, event.capacity);
+      }
+    }
+  }
+}
+
 export async function getTreinosParaPlayer(player: Player): Promise<TrainingWithAttendance[]> {
   await generateWeeklyTrainings();
 

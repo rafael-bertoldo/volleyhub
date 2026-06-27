@@ -2,40 +2,69 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { broadcastFeedToPlayer } from "@/lib/realtime/broadcast-server";
-import { MEMBERSHIP_TYPE_LABELS } from "@/lib/constants";
-import type { FeedItem } from "@/lib/types";
+import { MEMBERSHIP_TYPE_LABELS, MEMBERSHIP_TYPES } from "@/lib/constants";
+import { reconcilePlayerTrainingAttendances } from "@/lib/treinos-server";
+import type { FeedItem, MembershipType } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
 
-  const { player_id, action } = await request.json();
+  const { player_id, action, membership_type } = (await request.json()) as {
+    player_id?: string;
+    action?: "aprovar" | "recusar" | "alterar";
+    membership_type?: MembershipType;
+  };
 
-  if (!player_id || !["aprovar", "recusar"].includes(action)) {
+  if (!player_id || !["aprovar", "recusar", "alterar"].includes(action ?? "")) {
     return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }
 
-  const status = action === "aprovar" ? "approved" : "rejected";
+  const validAction = action as "aprovar" | "recusar" | "alterar";
+
+  if (
+    validAction === "alterar" &&
+    !MEMBERSHIP_TYPES.some((type) => type.value === membership_type)
+  ) {
+    return NextResponse.json({ error: "Modalidade inválida." }, { status: 400 });
+  }
+
   const supabase = createAdminClient();
+  const update =
+    validAction === "alterar"
+      ? { membership_type: membership_type as MembershipType, membership_status: "approved" as const }
+      : { membership_status: validAction === "aprovar" ? "approved" as const : "rejected" as const };
 
   const { data: player, error } = await supabase
     .from("players")
-    .update({ membership_status: status })
+    .update(update)
     .eq("id", player_id)
-    .select("id, name, membership_type")
+    .select("id, name, membership_type, membership_status")
     .single();
 
   if (error || !player) {
     return NextResponse.json({ error: "Atleta não encontrado." }, { status: 404 });
   }
 
-  const title =
-    action === "aprovar" ? "Modalidade aprovada!" : "Modalidade não disponível";
+  await reconcilePlayerTrainingAttendances(player);
 
-  const body =
-    action === "aprovar"
-      ? `Sua solicitação de ${MEMBERSHIP_TYPE_LABELS[player.membership_type as keyof typeof MEMBERSHIP_TYPE_LABELS]} foi aprovada. Bem-vindo ao time!`
-      : `No momento não há vaga disponível para ${MEMBERSHIP_TYPE_LABELS[player.membership_type as keyof typeof MEMBERSHIP_TYPE_LABELS]}. Entre em contato com o administrador.`;
+  const membershipLabel =
+    MEMBERSHIP_TYPE_LABELS[player.membership_type as keyof typeof MEMBERSHIP_TYPE_LABELS];
+
+  const titleByAction = {
+    aprovar: "Modalidade aprovada!",
+    recusar: "Modalidade não disponível",
+    alterar: "Modalidade alterada",
+  };
+
+  const bodyByAction = {
+    aprovar: `Sua solicitação de ${membershipLabel} foi aprovada. Bem-vindo ao time!`,
+    recusar: `No momento não há vaga disponível para ${membershipLabel}. Entre em contato com o administrador.`,
+    alterar: `Sua modalidade foi alterada para ${membershipLabel} pelo administrador.`,
+  };
+
+  const title = titleByAction[validAction];
+  const body = bodyByAction[validAction];
 
   const { data: feedItem, error: feedError } = await supabase
     .from("feed")

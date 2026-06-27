@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { MEMBERSHIP_TYPE_LABELS, POSITION_LABELS } from "@/lib/constants";
 import { formatPlayerName } from "@/lib/players";
 import { AprovarMembershipTypeButton } from "../../aprovar-membership_type-button";
+import { MembershipTypeSelect } from "../../membership-type-select";
 import { MensalidadePlayerCell } from "../../mensalidade-player-cell";
 import { StatusBadge } from "../../status-badge";
 import { MEMBERSHIP_FEE_DUE_DAY } from "@/lib/mensalidade";
@@ -29,7 +30,7 @@ export default async function PlayersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Players</h1>
+        <h1 className="text-xl font-bold text-gray-900">Atletas</h1>
         <p className="text-sm text-gray-500 mt-1">
           {playersList.length} cadastrados
           {pending.length > 0 && ` · ${pending.length} pendente(s)`}
@@ -64,10 +65,16 @@ export default async function PlayersPage() {
                       {new Date(player.created_at).toLocaleDateString("pt-BR")}
                     </p>
                   </div>
-                  <AprovarMembershipTypeButton
-                    playerId={player.id}
-                    name={formatPlayerName(player)}
-                  />
+                  <div className="flex flex-col sm:items-end gap-2">
+                    <MembershipTypeSelect
+                      playerId={player.id}
+                      currentMembershipType={player.membership_type}
+                    />
+                    <AprovarMembershipTypeButton
+                      playerId={player.id}
+                      name={formatPlayerName(player)}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -76,9 +83,9 @@ export default async function PlayersPage() {
       )}
 
       <section className="card">
-        <h2 className="section-title">Todos os players</h2>
+        <h2 className="section-title">Todos os atletas</h2>
         {!playersList.length ? (
-          <p className="text-sm text-gray-500">Nenhum player cadastrado ainda.</p>
+          <p className="text-sm text-gray-500">Nenhum atleta cadastrado ainda.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -86,7 +93,7 @@ export default async function PlayersPage() {
                 <tr className="text-left text-gray-500 border-b border-gray-100">
                   <th className="pb-2 pr-4 font-medium">Nome</th>
                   <th className="pb-2 pr-4 font-medium">E-mail</th>
-                  <th className="pb-2 pr-4 font-medium">MembershipType</th>
+                  <th className="pb-2 pr-4 font-medium">Modalidade</th>
                   <th className="pb-2 pr-4 font-medium">Posição</th>
                   <th className="pb-2 pr-4 font-medium">Status</th>
                   <th className="pb-2 pr-4 font-medium">Mensalidade</th>
@@ -104,8 +111,11 @@ export default async function PlayersPage() {
                     <td className="py-3 pr-4 text-gray-600">
                       {player.email ?? "Sem login vinculado"}
                     </td>
-                    <td className="py-3 pr-4 text-gray-600">
-                      {MEMBERSHIP_TYPE_LABELS[player.membership_type]}
+                    <td className="py-3 pr-4 text-gray-600 align-top">
+                      <MembershipTypeSelect
+                        playerId={player.id}
+                        currentMembershipType={player.membership_type}
+                      />
                     </td>
                     <td className="py-3 pr-4 text-gray-600">
                       {player.preferred_position ? POSITION_LABELS[player.preferred_position] : "-"}
